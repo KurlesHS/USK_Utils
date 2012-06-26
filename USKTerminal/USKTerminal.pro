@@ -6,20 +6,6 @@
 
 QT       += core gui
 
-RCC_DIR = $$PWD/../build/rcc
-UI_DIR = $$PWD/../build/ui
-MOC_DIR = $$PWD/../build//moc
-DESTDIR = $$PWD/../app
-
-CONFIG(debug, debug|release):{
-DEFINES+=DEBUG
-OBJECTS_DIR = $$PWD/../build/debug/obj
-} else: {
-OBJECTS_DIR = $$PWD/../build/release/obj
-}
-CONFIG(debug, debug|release):DEFINES += DEBUG
-
-
 TARGET = USKTerminal2
 TEMPLATE = app
 
