@@ -51,9 +51,9 @@ FORMS    += mainwindow.ui \
 #загрузка и подключение библиотек, необходимых для QSerialDevice
 #в случае чего просто скопировать и вставить в .pro файл нового проекта.
 
-include(../qserialdevice-qserialdevice-master/qserialdevice-qserialdevice/src/qserialdevice/qserialdevice.pri)
-include(../qserialdevice-qserialdevice-master/qserialdevice-qserialdevice/src/qserialdeviceenumerator/qserialdeviceenumerator.pri)
-unix:include(../qserialdevice-qserialdevice-master/qserialdevice-qserialdevice/src/unix/ttylocker.pri)
+include(../qserialdevice/src/qserialdevice/qserialdevice.pri)
+include(../qserialdevice/src/qserialdeviceenumerator/qserialdeviceenumerator.pri)
+unix:include(../qserialdevice/src/unix/ttylocker.pri)
 win32 {
     LIBS += -lsetupapi -luuid -ladvapi32
 }
