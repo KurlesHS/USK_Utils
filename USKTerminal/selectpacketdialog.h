@@ -5,7 +5,7 @@
 #include <QDebug>
 #include <QByteArray>
 
-#include <mywidget.h>
+#include "mywidget.h"
 #include "usktimepacket.h"
 #include "uskmessagepacket.h"
 #include "uskkpudata.h"

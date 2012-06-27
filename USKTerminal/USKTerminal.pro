@@ -6,10 +6,25 @@
 
 QT       += core gui
 
+RCC_DIR = $$PWD/../build/rcc
+UI_DIR = $$PWD/../build/ui
+MOC_DIR = $$PWD/../build//moc
+DESTDIR = $$PWD/../app
+
+CONFIG(debug, debug|release):{
+DEFINES+=DEBUG
+OBJECTS_DIR = $$PWD/../build/debug/obj
+} else: {
+OBJECTS_DIR = $$PWD/../build/release/obj
+}
+CONFIG(debug, debug|release):DEFINES += DEBUG
+
+
 TARGET = USKTerminal2
 TEMPLATE = app
 
 INCLUDEPATH += $$PWD/../PacketDecoder
+INCLUDEPATH += $$PWD
 
 SOURCES += main.cpp\
         mainwindow.cpp \
@@ -51,9 +66,9 @@ FORMS    += mainwindow.ui \
 #загрузка и подключение библиотек, необходимых для QSerialDevice
 #в случае чего просто скопировать и вставить в .pro файл нового проекта.
 
-include(../qserialdevice-qserialdevice-master/qserialdevice-qserialdevice/src/qserialdevice/qserialdevice.pri)
-include(../qserialdevice-qserialdevice-master/qserialdevice-qserialdevice/src/qserialdeviceenumerator/qserialdeviceenumerator.pri)
-unix:include(../qserialdevice-qserialdevice-master/qserialdevice-qserialdevice/src/unix/ttylocker.pri)
+include(../qserialdevice/src/qserialdevice/qserialdevice.pri)
+include(../qserialdevice/src/qserialdeviceenumerator/qserialdeviceenumerator.pri)
+unix:include(../qserialdevice/src/unix/ttylocker.pri)
 win32 {
     LIBS += -lsetupapi -luuid -ladvapi32
 }
