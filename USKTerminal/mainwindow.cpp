@@ -160,6 +160,21 @@ MainWindow::MainWindow(QWidget *parent) :
         if (index >= 0) ui->SerialPortComboBox->setCurrentIndex(index);
         else ui->SerialPortComboBox->lineEdit()->setText(setting.value("PortName").toString());
     }
+    if (setting.contains("IncludeCRC"))
+        ui->checkBoxCRC->setChecked(setting.value("IncludeCRC").toBool());
+    if (setting.contains("CRCMethod"))
+        ui->checkBoxCRCMethod->setChecked(setting.value("CRCMethod").toBool());
+    if (setting.contains("BaudRate"))
+        ui->baudRateComboBox->setCurrentIndex(setting.value("BaudRate").toInt());
+    if (setting.contains("FlowControm"))
+        ui->flowContorlComboBox->setCurrentIndex(setting.value("FlowControm").toInt());
+    if (setting.contains("Parity"))
+        ui->parityComboBox->setCurrentIndex(setting.value("Parity").toInt());
+    if (setting.contains("StopBits"))
+        ui->stopBitsComboBox->setCurrentIndex(setting.value("StopBits").toInt());
+    if (setting.contains("DataBits"))
+        ui->dataBitsComboBox->setCurrentIndex(setting.value("DataBits").toInt());
+
     setting.endGroup();
     delete serialPort;
     serialPort = 0;
@@ -175,6 +190,13 @@ MainWindow::~MainWindow()
     }
     setting.setValue("PacketData", array);
     setting.setValue("PortName", ui->SerialPortComboBox->currentText());
+    setting.setValue("IncludeCRC", ui->checkBoxCRC->isChecked());
+    setting.setValue("CRCMethod", ui->checkBoxCRCMethod->isChecked());
+    setting.setValue("BaudRate", ui->baudRateComboBox->currentIndex());
+    setting.setValue("FlowControm", ui->flowContorlComboBox->currentIndex());
+    setting.setValue("Parity", ui->parityComboBox->currentIndex());
+    setting.setValue("StopBits", ui->stopBitsComboBox->currentIndex());
+    setting.setValue("DataBits", ui->dataBitsComboBox->currentIndex());
     setting.endGroup();
     if (serialThread) {
         serialThread->terminate();
@@ -822,7 +844,8 @@ void MainWindow::updateSendRegion()
             }
             if (ui->checkBoxCRC->isChecked())
             {
-                crc = 0x00 - crc;
+                if (!ui->checkBoxCRCMethod->isChecked())
+                    crc = 0x00 - crc;
                 queue.enqueue(crc);
                 array.append(crc);
             }
