@@ -1,8 +1,18 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "QFile"
+#include <QSound>
 #include <QDebug>
 #include <QLineEdit>
+#include <QTemporaryFile>
+const static QString toolTipTemplate =
+        QObject::trUtf8("<html><body><table border=\"0\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px;\" cellspacing=\"1\" cellpadding=\"1\">"
+                        "<tr><td><p align=\"right\">Offset: </p></td><td><p><span style=\" font-weight:600;\">%0 </span>"
+                        "</p></td></tr><tr><td><p align=\"right\">Dec: </p></td><td><p><span style=\" font-weight:600;\">%1</span>"
+                        "</p></td></tr><tr><td><p align=\"right\">Hex: </p></td><td><p><span style=\" font-weight:600;\">%2</span>"
+                        "</p></td></tr><tr><td><p align=\"right\">Bin: </p></td><td><p><span style=\" font-weight:600;\">%3</span>"
+                        "</p></td></tr></table></body></html>");
+
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
@@ -49,6 +59,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
 MainWindow::~MainWindow()
 {
+    foreach (QTemporaryFile *tp, listOftp)
+        delete tp;
     delete ui;
 }
 
@@ -152,8 +164,9 @@ void ItemModel::setLenghtData(const int &lenght)
     if (lenght % 8)
         ++rowC;
     setRowCount(rowC);
-    for (int c = 0; c < 8; c++)
-        for(int r = 0; r < rowCount(); ++r)
+
+    for(int r = 0; r < rowCount(); ++r)
+        for (int c = 0; c < 8; c++)
         {
             QStandardItem *item = itemFromIndex(index(r, c));
             if (!item)
@@ -165,7 +178,6 @@ void ItemModel::setLenghtData(const int &lenght)
 
 void ItemModel::setBase(const ItemModel::base &newBase)
 {
-    qDebug() << "setBase()";
     if (newBase == currentBase)
         return;
     currentBase = newBase;
@@ -183,15 +195,22 @@ void ItemModel::recalculate()
             item->setData((int)currentBase, Qt::UserRole + 2);
             if (item->isEditable())
             {
+                int val = item->data(Qt::UserRole + 1).toInt();
+                QString hexVal, decVal, binVal;
+                hexVal = QString("0x%0").arg(val, 2, 16, QChar('0'));
+                decVal = QString("%0").arg(val);
+                binVal = QString("b'%0'").arg(val, 8, 2, QChar('0'));
+                int pos = r * 8 + c;
+                item->setToolTip(toolTipTemplate.arg(pos).arg(decVal).arg(hexVal).arg(binVal));
                 switch(currentBase){
                 case baseBin:
-                    item->setText(trUtf8("b'%0'").arg(item->data(Qt::UserRole + 1).toInt(),8 ,2, QChar('0')));
+                    item->setText(trUtf8("%1: b'%0'").arg(binVal).arg(pos));
                     break;
                 case baseDec:
-                    item->setText(trUtf8("%0").arg(item->data(Qt::UserRole + 1).toInt()));
+                    item->setText(trUtf8("%1: %0").arg(decVal).arg(pos));
                     break;
                 case baseHex:
-                    item->setText(trUtf8("0x%0").arg(item->data(Qt::UserRole + 1).toInt(),2 ,16, QChar('0')));
+                    item->setText(trUtf8("%1: 0x%0").arg(hexVal).arg(pos));
                     break;
                 }
 
@@ -201,10 +220,31 @@ void ItemModel::recalculate()
         }
 }
 
+QByteArray ItemModel::getData()
+{
+    QByteArray ret;
+    for(int r = 0; r < rowCount(); ++r)
+        for (int c = 0; c < 8; c++)
+        {
+            QStandardItem *item = itemFromIndex(index(r, c));
+            if (!item)
+                continue;
+            if (!item->isEditable())
+                break;
+            ret.append((char)item->data(Qt::UserRole + 1).toInt());
+        }
+    qDebug() << "start of array";
+    for (int i; i < ret.length(); ++i)
+        qDebug() << (unsigned char)ret.at(i);
+    qDebug() << "end of array";
+    return ret;
+
+}
+
 
 QWidget *Delegate::createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
-    QStyledItemDelegate::createEditor(parent, option, index);
+    return QStyledItemDelegate::createEditor(parent, option, index);
 }
 
 void Delegate::setEditorData(QWidget *editor, const QModelIndex &index) const
@@ -248,22 +288,29 @@ void Delegate::setModelData(QWidget *editor, QAbstractItemModel *model, const QM
         val = lineEdit->text().toInt(&ok, 16);
         break;
     }
-    if (ok)
+    if (ok && val <= 0xff)
         model->setData(index, val, Qt::UserRole + 1);
     else
         val = index.data(Qt::UserRole + 1).toInt();
     qDebug() << val;
+    int pos = index.row() * 8 + index.column();
+    QString hexVal, decVal, binVal;
+    hexVal = QString("0x%0").arg(val, 2, 16, QChar('0'));
+    decVal = QString("%0").arg(val);
+    binVal = QString("b'%0'").arg(val, 8, 2, QChar('0'));
+    QString toolTip = toolTipTemplate.arg(pos).arg(decVal).arg(hexVal).arg(binVal);
 
+    model->setData(index, toolTip, Qt::ToolTipRole);
     switch(b)
     {
     case ItemModel::baseBin:
-        lineEdit->setText(QString("b'%0'").arg(val,8, 2, QChar('0')));
+        model->setData(index, QString("%1: %0").arg(binVal).arg(pos));
         break;
     case ItemModel::baseDec:
-        lineEdit->setText(QString("%0").arg(index.data(Qt::UserRole + 1).toInt()));
+        model->setData(index, QString("%1: %0").arg(decVal).arg(pos));
         break;
     case ItemModel::baseHex:
-        lineEdit->setText(QString("0x%0").arg(index.data(Qt::UserRole + 1).toInt(),2, 16, QChar('0')));
+        model->setData(index, QString("%1: %0").arg(hexVal).arg(pos));
         break;
     }
 }
@@ -281,4 +328,19 @@ void Delegate::updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem 
 Delegate::Delegate(QObject *parent) :
     QStyledItemDelegate(parent)
 {
+}
+
+void MainWindow::on_pushButtonPlay_clicked()
+{
+    QByteArray array = model->getData();
+    QTemporaryFile *tf = new QTemporaryFile("pippip_tmp.XXXXXX.wav");
+    tf->open();
+    tf->write(generateWavFile(array));
+    tf->close();
+    qDebug() << tf->fileName();
+    listOftp.append(tf);
+    QSound::play(tf->fileName());
+
+
+
 }

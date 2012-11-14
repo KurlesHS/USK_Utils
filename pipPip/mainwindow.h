@@ -5,6 +5,8 @@
 #include <QStandardItemModel>
 #include <QStyledItemDelegate>
 
+class QTemporaryFile;
+
 namespace Ui {
 class MainWindow;
 }
@@ -37,6 +39,7 @@ public:
     void setBase(const base &newBase);
     void recalculate();
     base getBase() const {return currentBase;}
+    QByteArray getData();
 
 private:
     base currentBase;
@@ -60,11 +63,14 @@ private slots:
 
 
     
+    void on_pushButtonPlay_clicked();
+
 private:
     Ui::MainWindow *ui;
     QByteArray s1, s0;
     QByteArray header;
     ItemModel *model;
+    QList<QTemporaryFile*> listOftp;
 
 };
 

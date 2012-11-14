@@ -45,7 +45,7 @@
       <item>
        <widget class="QLabel" name="label">
         <property name="text">
-         <string>Длинна пакета:</string>
+         <string>&lt;html&gt;&lt;head&gt;&lt;title&gt;HTML Online Editor Sample&lt;/title&gt;&lt;/head&gt;&lt;body&gt;&lt;p&gt;Длинна пакета&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
        </widget>
       </item>
