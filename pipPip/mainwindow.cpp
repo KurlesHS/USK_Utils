@@ -1,10 +1,17 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include <QMessageBox>
+#include <QFileDialog>
 #include "QFile"
 #include <QSound>
 #include <QDebug>
 #include <QLineEdit>
-#include <QTemporaryFile>
+#include <QDir>
+#include <QTimer>
+#include <QEventLoop>
+#include <QAudioFormat>
+#include <QAudioOutput>
+#include <QDataStream>
 const static QString toolTipTemplate =
         QObject::trUtf8("<html><body><table border=\"0\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px;\" cellspacing=\"1\" cellpadding=\"1\">"
                         "<tr><td><p align=\"right\">Offset: </p></td><td><p><span style=\" font-weight:600;\">%0 </span>"
@@ -22,7 +29,7 @@ MainWindow::MainWindow(QWidget *parent) :
     bool ok = true;
     if (f.open(QIODevice::ReadOnly))
     {
-        header = f.read(0x01fc);
+        header = f.read(40);
         QByteArray len = f.read(4);
         for (int i = 0; i<len.length(); ++i)
             qDebug() <<(int)(unsigned char)len.at(i);
@@ -34,7 +41,7 @@ MainWindow::MainWindow(QWidget *parent) :
     f.setFileName(":/data/0.wav");
     if (f.open(QIODevice::ReadOnly))
     {
-        f.seek(0x01fc);
+        f.seek(40);
         QByteArray len = f.read(4);
         for (int i = 0; i<len.length(); ++i)
             qDebug() <<(int)(unsigned char)len.at(i);
@@ -112,12 +119,46 @@ void MainWindow::appendByte(QByteArray &array, char byte)
 
 void MainWindow::onSaveButtonPushed()
 {
-
+    QString fileName = QFileDialog::getSaveFileName(this, trUtf8("Сохранение wav файла"), "./", trUtf8("*.wav файлы(*.wav)"));
+    if (fileName.isEmpty())
+        return;
+    QRegExp re(".wav$");
+    if (re.indexIn(fileName) < 0)
+        fileName += ".wav";
+    QByteArray res = generateWavFile(model->getData());
+    QFile f(fileName);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    {
+        QMessageBox::warning(this, trUtf8("Ошибка"), trUtf8("Ошибка открытия файла"));
+        return;
+    }
+    f.write(res);
+    f.close();
 }
 
+Q_DECLARE_METATYPE(QSound*)
 void MainWindow::onPlayButtonPushed()
 {
-
+    ui->pushButtonPlay->setEnabled(false);
+    QByteArray array = model->getData();
+    QByteArray data = generateWavFile(array);
+    QAudioFormat format;
+    // Set up the format, eg.
+    format.setFrequency(44100);
+    format.setChannels(1);
+    format.setSampleSize(16);
+    format.setCodec("audio/pcm");
+    format.setByteOrder(QAudioFormat::LittleEndian);
+    format.setSampleType(QAudioFormat::UnSignedInt);
+    QAudioOutput *audio = new QAudioOutput( format, 0);
+    QDataStream ds(&data, QIODevice::ReadOnly);
+    ds.device()->open(QIODevice::ReadOnly);
+    qDebug() << "bytes available" <<  ds.device()->bytesAvailable();
+    audio->start(ds.device());
+    while(audio->state() == QAudio::ActiveState)
+        QApplication::processEvents();
+    delete audio;
+    ui->pushButtonPlay->setEnabled(true);
 }
 
 void MainWindow::onSpinBoxValueChanged(int value)
@@ -142,6 +183,16 @@ void MainWindow::onComboBoxItemChanged(int index)
     }
 }
 
+void MainWindow::onTimer()
+{
+    QSound *sound = sender()->property("sound").value<QSound*>();
+    qDebug() << "sound" << sound;
+    if (!sound)
+        emit playFinished();
+    else
+        if (sound->isFinished())
+            emit playFinished();
+}
 
 ItemModel::ItemModel(QObject *parent) :
     QStandardItemModel(parent)
@@ -204,16 +255,15 @@ void ItemModel::recalculate()
                 item->setToolTip(toolTipTemplate.arg(pos).arg(decVal).arg(hexVal).arg(binVal));
                 switch(currentBase){
                 case baseBin:
-                    item->setText(trUtf8("%1: b'%0'").arg(binVal).arg(pos));
+                    item->setText(trUtf8("%1: %0").arg(binVal).arg(pos));
                     break;
                 case baseDec:
                     item->setText(trUtf8("%1: %0").arg(decVal).arg(pos));
                     break;
                 case baseHex:
-                    item->setText(trUtf8("%1: 0x%0").arg(hexVal).arg(pos));
+                    item->setText(trUtf8("%1: %0").arg(hexVal).arg(pos));
                     break;
                 }
-
             }
             else
                 item->setText(trUtf8("Недоступно"));
@@ -234,9 +284,9 @@ QByteArray ItemModel::getData()
             ret.append((char)item->data(Qt::UserRole + 1).toInt());
         }
     qDebug() << "start of array";
-    for (int i; i < ret.length(); ++i)
+    for (int i = 0; i < ret.length(); ++i)
         qDebug() << (unsigned char)ret.at(i);
-    qDebug() << "end of array";
+    qDebug() << "end of array" << ret.length();
     return ret;
 
 }
@@ -250,7 +300,6 @@ QWidget *Delegate::createEditor(QWidget *parent, const QStyleOptionViewItem &opt
 void Delegate::setEditorData(QWidget *editor, const QModelIndex &index) const
 {
     QLineEdit *lineEdit = qobject_cast<QLineEdit*>(editor);
-    lineEdit->setProperty("prevVal", index.data(Qt::UserRole + 1));
     if (!lineEdit)
         return;
     ItemModel::base b = (ItemModel::base)index.data(Qt::UserRole + 2).toInt();
@@ -330,17 +379,4 @@ Delegate::Delegate(QObject *parent) :
 {
 }
 
-void MainWindow::on_pushButtonPlay_clicked()
-{
-    QByteArray array = model->getData();
-    QTemporaryFile *tf = new QTemporaryFile("pippip_tmp.XXXXXX.wav");
-    tf->open();
-    tf->write(generateWavFile(array));
-    tf->close();
-    qDebug() << tf->fileName();
-    listOftp.append(tf);
-    QSound::play(tf->fileName());
 
-
-
-}

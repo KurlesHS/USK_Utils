@@ -1,3 +1,3 @@
 TARGET          = usk_utils
 TEMPLATE        = subdirs
-SUBDIRS         = pipPip
+SUBDIRS         = pipPip USKTerminal

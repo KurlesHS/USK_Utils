@@ -60,10 +60,12 @@ private slots:
     void onPlayButtonPushed();
     void onSpinBoxValueChanged(int value);
     void onComboBoxItemChanged(int index);
+    void onTimer();
+
+signals:
+    void playFinished();
 
 
-    
-    void on_pushButtonPlay_clicked();
 
 private:
     Ui::MainWindow *ui;

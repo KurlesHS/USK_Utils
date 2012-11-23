@@ -30,6 +30,7 @@ MainWindow::MainWindow(QWidget *parent) :
     serialThread = 0;
     onEnableRepeatRacketButtonPushed();
     connect(ui->checkBoxCRC,SIGNAL(clicked()),SLOT(onIncludeCRCCheckBoxChanged()));
+    connect(ui->checkBoxCRCMethod, SIGNAL(clicked()), SLOT(onIncludeCRCCheckBoxChanged()));
 
     connect(ui->pushButtonClosePort,SIGNAL(clicked()),this,SLOT(onClosePortButtonPushed()));
     connect(ui->pushButtonOpenPort,SIGNAL(clicked()),this,SLOT(onOpenPortButtonPushed()));
