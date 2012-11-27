@@ -831,7 +831,7 @@ void MainWindow::updateSendRegion()
     for (int i = 0; i < tableColumnCount; ++i){
         MyLineEdit* le = qobject_cast<MyLineEdit*>(ui->tableWidget->cellWidget(4,i));
         if (le->text() == "1") {
-            quint8 crc = 0;
+            char crc = 0;
             char c;
             for (int i2 = 0; i2 < tableColumnCount;++i2)
             {
