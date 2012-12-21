@@ -1,3 +1,4 @@
 TARGET          = usk_utils
 TEMPLATE        = subdirs
-SUBDIRS         = pipPip USKTerminal
+SUBDIRS         = pipPip USKTerminal \
+    SendUSKv1

@@ -573,6 +573,8 @@ void MainWindow::onOpenPortButtonPushed()
         serialPort = 0;
         return;
     }
+    serialPort->reset();
+    serialPort->flush();
 
     serialPort->setBaudRate(ui->baudRateComboBox->currentText());
     serialPort->setDataBits(ui->dataBitsComboBox->currentText());

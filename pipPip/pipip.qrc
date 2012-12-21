@@ -2,5 +2,6 @@
     <qresource prefix="/">
         <file>data/0.wav</file>
         <file>data/1.wav</file>
+        <file>data/empty.wav</file>
     </qresource>
 </RCC>

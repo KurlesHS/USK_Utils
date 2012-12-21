@@ -69,7 +69,7 @@ signals:
 
 private:
     Ui::MainWindow *ui;
-    QByteArray s1, s0;
+    QByteArray s1, s0, empty;
     QByteArray header;
     ItemModel *model;
     QList<QTemporaryFile*> listOftp;

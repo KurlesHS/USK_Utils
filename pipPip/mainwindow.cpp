@@ -49,6 +49,17 @@ MainWindow::MainWindow(QWidget *parent) :
         s0 = f.read(l);
     } else
         ok = false;
+    f.setFileName(":/data/empty.wav");
+    if (f.open(QIODevice::ReadOnly))
+    {
+        f.seek(40);
+        QByteArray len = f.read(4);
+        for (int i = 0; i<len.length(); ++i)
+            qDebug() <<(int)(unsigned char)len.at(i);
+        int l = (unsigned char)len.at(0) + ((unsigned char)len.at(1)) * 0x100;
+        empty = f.read(l);
+    } else
+        ok = false;
     connect(ui->pushButtonPlay, SIGNAL(clicked()), this, SLOT(onPlayButtonPushed()));
     connect(ui->pushButtonSave, SIGNAL(clicked()), this, SLOT(onSaveButtonPushed()));
     connect(ui->spinBoxLenght, SIGNAL(valueChanged(int)), this, SLOT(onSpinBoxValueChanged(int)));
@@ -76,8 +87,10 @@ QByteArray MainWindow::generateWavFile(const QByteArray &data)
     if (data.isEmpty())
         return QByteArray();
     QByteArray  res;
+    res.append(empty);
     for (int i = 0; i < data.length(); ++i)
         appendByte(res, data.at(i));
+    res.append(empty);
     int len = res.length();
     QByteArray h;
     h.append(header);

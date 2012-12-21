@@ -33,7 +33,8 @@ FORMS    += mainwindow.ui
 
 OTHER_FILES += \
     data/1.wav \
-    data/0.wav
+    data/0.wav \
+    data/empty.wav
 
 RESOURCES += \
     pipip.qrc
