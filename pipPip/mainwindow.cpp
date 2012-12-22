@@ -12,6 +12,7 @@
 #include <QAudioFormat>
 #include <QAudioOutput>
 #include <QDataStream>
+#include <QHeaderView>
 const static QString toolTipTemplate =
         QObject::trUtf8("<html><body><table border=\"0\" style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px;\" cellspacing=\"1\" cellpadding=\"1\">"
                         "<tr><td><p align=\"right\">Offset: </p></td><td><p><span style=\" font-weight:600;\">%0 </span>"
@@ -155,10 +156,13 @@ void MainWindow::onPlayButtonPushed()
     ui->pushButtonPlay->setEnabled(false);
     QByteArray array = model->getData();
     QByteArray data = generateWavFile(array);
+    data.remove(0, header.length() + 4);
+    //data.resize(0x100000);
+    //data.fill(static_cast<char>(0x00));
     QAudioFormat format;
     // Set up the format, eg.
-    format.setFrequency(44100);
-    format.setChannels(1);
+    format.setSampleRate(44100);
+    format.setChannelCount(1);
     format.setSampleSize(16);
     format.setCodec("audio/pcm");
     format.setByteOrder(QAudioFormat::LittleEndian);

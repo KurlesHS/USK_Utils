@@ -8,6 +8,7 @@ QT       += core gui multimedia
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
+
 RCC_DIR = $$PWD/../build/pippip/rcc
 UI_DIR = $$PWD/../build/pippip/ui
 MOC_DIR = $$PWD/../build/pippip//moc
