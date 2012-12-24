@@ -52,7 +52,7 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
-    QByteArray generateWavFile(const QByteArray &data);
+    QByteArray generateWavFile(const QByteArray &data, bool includeWavHeader = true);
     void appendByte(QByteArray &array, char byte);
 
 private slots:

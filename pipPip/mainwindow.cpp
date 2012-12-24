@@ -83,7 +83,7 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-QByteArray MainWindow::generateWavFile(const QByteArray &data)
+QByteArray MainWindow::generateWavFile(const QByteArray &data, bool includeWavHeader)
 {
     if (data.isEmpty())
         return QByteArray();
@@ -92,15 +92,18 @@ QByteArray MainWindow::generateWavFile(const QByteArray &data)
     for (int i = 0; i < data.length(); ++i)
         appendByte(res, data.at(i));
     res.append(empty);
-    int len = res.length();
-    QByteArray h;
-    h.append(header);
-    qDebug() << trUtf8("%0, %1").arg(len).arg(len, 16);
-    h.append((char)(len % 0x100));
-    h.append((char)(len >> 8));
-    h.append((char)(len >> 16));
-    h.append((char)(len >> 24));
-    res.prepend(h);
+    if (includeWavHeader)
+    {
+        int len = res.length();
+        QByteArray h;
+        h.append(header);
+        qDebug() << trUtf8("%0, %1").arg(len).arg(len, 16);
+        h.append((char)(len % 0x100));
+        h.append((char)(len >> 8));
+        h.append((char)(len >> 16));
+        h.append((char)(len >> 24));
+        res.prepend(h);
+    }
     QFile f("d:\\test.wav");
     f.open(QIODevice::WriteOnly | QIODevice::Truncate);
     f.write(res);
@@ -155,10 +158,7 @@ void MainWindow::onPlayButtonPushed()
 {
     ui->pushButtonPlay->setEnabled(false);
     QByteArray array = model->getData();
-    QByteArray data = generateWavFile(array);
-    data.remove(0, header.length() + 4);
-    //data.resize(0x100000);
-    //data.fill(static_cast<char>(0x00));
+    QByteArray data = generateWavFile(array, false);
     QAudioFormat format;
     // Set up the format, eg.
     format.setSampleRate(44100);
