@@ -32,6 +32,7 @@ class SendUSKv1WorkingThread : public QObject
     {
         QString description;
         QByteArray packet;
+        bool waitResponse;
     };
 
     struct uskInfo
@@ -51,6 +52,7 @@ class SendUSKv1WorkingThread : public QObject
         int currentNumberOfAttemps;
         QByteArray prevPacket;
         QString prevPacketDescription;
+        bool prevPacketWaitResponse;
         QList <uskPacket> listOfPacketToSend;
     };
 
@@ -81,6 +83,8 @@ public slots:
     void openUsk(const QString &uskName);
     void closeUsk(const QString &uskName);
     void sendTime(const QString &uskName, const QDateTime &time);
+    void resetUsk(const QString &uskName);
+    void changeRelayStatus(const QString &uskName, const int &rayNum, const int &kpuNum, const int &sensorNum, const int &relayStatus);
 
 signals:
     void error(const QString &uskName, int errorCode);
@@ -94,12 +98,13 @@ signals:
     void startSendingCommand(const QString &uskName, const QString &commandDescription);
     void detectedNewKpu(const QString &uskName, const int &rayNum, const int &kpuNum);
     void detectedDisconnetcedKpu(const QString &uskName, const int &rayNum, const int &kpuNum);
+    void sensorChanged(const QString &uskName, const int &rayNum, const int &kpuNum, const int &sensorNum, const int &state);
 
 
 private:
     QByteArray getSetTimePacket(const uskInfo *const ui, const QDateTime &time);
     QByteArray getResetUskPacket(const uskInfo *const ui);
-    QByteArray getChangeKpuRelayStatePacker(const uskInfo *const ui, const int &rayNum, const int &kpuNum, const int &sensorNum, const bool &state);
+    QByteArray getChangeKpuRelayStatePacket(const uskInfo *const ui, const int &rayNum, const int &kpuNum, const int &sensorNum, const int &state);
     void appendCrcToPacket(QByteArray &packet);
     QByteArray getFirstPartOfPacket(const ushort &uskNum, const quint64 &flags, const quint8 &priority);
 
@@ -107,11 +112,12 @@ private slots:
     void onReadyRead();
     void onTimer();
     void onTimer2();
-
+    void onCheckBuffersTimer();
 
 private:
     QHash<QString, uskInfo> m_hashOfUsk;
     static QTextCodec *m_codecWin1251;
+    QTimer *m_checkBuffersTimer;
     
 };
 

@@ -7,7 +7,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    SendUSKv1WorkingThread *td = new SendUSKv1WorkingThread(this);
+    td = new SendUSKv1WorkingThread(this);
     connect(td, SIGNAL(detectedDisconnetcedKpu(QString,int,int)), SLOT(onDetectedDisconnetcedKpu(QString,int,int)));
     connect(td, SIGNAL(detectedNewKpu(QString,int,int)),SLOT(onDetectedNewKpu(QString,int,int)));
     connect(td, SIGNAL(error(QString,int)), SLOT(onError(QString,int)));
@@ -19,6 +19,22 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(td, SIGNAL(uskInfoPacketReceived(QString,int)), SLOT(onUskInfoPacketReceived(QString,int)));
     connect(td, SIGNAL(uskIsPresent(QString,bool)), SLOT(onUskIsPresent(QString,bool)));
     connect(td, SIGNAL(uskReset(QString)), SLOT(onUskReset(QString)));
+    connect(td, SIGNAL(sensorChanged(QString,int,int,int,int)), SLOT(onSensorChanged(QString,int,int,int,int)));
+
+    connect(ui->pushButtonSendTime, SIGNAL(clicked()), SLOT(onSendTimeButtonPushed()));
+    connect(ui->pushButtonMessageOnScreen, SIGNAL(clicked()), SLOT(onSendMessageButtonPushed()));
+    connect(ui->pushButtonResetUSK, SIGNAL(clicked()), SLOT(onResetUskButtonPushed()));
+    connect(ui->pushButtonChangeRelay, SIGNAL(clicked()), SLOT(onChangeRelaysOnKpuButtonPushed()));
+
+    for (int i = 1; i <= 4; ++i)
+        ui->comboBoxRayNum->addItem(trUtf8("Луч №%0").arg(i));
+    for (int i = 1; i <= 9; ++i)
+        ui->comboBoxKpuNum->addItem(trUtf8("КПУ №%0").arg(i));
+    for (int i = 1; i <= 8; ++i)
+        ui->comboBoxRelayNum->addItem(trUtf8("Датчик №%0").arg(i));
+    ui->comboBoxRelayState->addItem(trUtf8("Лог. \"0\""));
+    ui->comboBoxRelayState->addItem(trUtf8("Лог. \"1\""));
+
 #ifdef Q_OS_WIN
     td->addUsk("11", "COM1", 11);
 #elif defined Q_OS_LINUX
@@ -130,8 +146,35 @@ void MainWindow::onDetectedDisconnetcedKpu(const QString &uskName, const int &ra
     addMessage(trUtf8("Обнаружено отключение КПУ №%0 на луче №%1 на УСК %2").arg(kpuNum).arg(rayNum).arg(uskName));
 }
 
+void MainWindow::onSensorChanged(const QString &uskName, const int &rayNum, const int &kpuNum, const int &sensorNum, const int &state)
+{
+    addMessage(trUtf8("Изменение состоняния контактов на УСК %0, луч №%1, КПУ№%2, номер датчика %4 состояние %3")
+               .arg(uskName).arg(rayNum).arg(kpuNum).arg(state == 0 ? trUtf8("лог. ноль") : trUtf8("лог. еденица")).arg(sensorNum));
+}
+
+void MainWindow::onSendTimeButtonPushed()
+{
+    td->sendTime("11", QDateTime::currentDateTime());
+}
 
 
+
+void MainWindow::onSendMessageButtonPushed()
+{
+}
+
+void MainWindow::onResetUskButtonPushed()
+{
+    td->resetUsk("11");
+}
+
+void MainWindow::onChangeRelaysOnKpuButtonPushed()
+{
+    td->changeRelayStatus("11", ui->comboBoxRayNum->currentIndex() + 1,
+                          ui->comboBoxKpuNum->currentIndex() + 1,
+                          ui->comboBoxRelayNum->currentIndex() + 1,
+                          ui->comboBoxRelayState->currentIndex());
+}
 
 void MainWindow::addMessage(const QString &message)
 {

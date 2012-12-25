@@ -10,7 +10,13 @@ SendUSKv1WorkingThread::SendUSKv1WorkingThread(QObject *parent) :
 {
     QTimer *t = new QTimer(this);
     connect(t, SIGNAL(timeout()), this, SLOT(onTimer2()));
-    t->start(1000);
+    //t->start(1000);
+
+    m_checkBuffersTimer = new QTimer();
+    connect(m_checkBuffersTimer, SIGNAL(timeout()), this, SLOT(onCheckBuffersTimer()));
+    // период проверки выходных буферов
+    m_checkBuffersTimer->start(200);
+
 }
 
 bool SendUSKv1WorkingThread::addUsk(const QString &uskName, const QString &portName, int uskNum)
@@ -38,7 +44,7 @@ bool SendUSKv1WorkingThread::addUsk(const QString &uskName, const QString &portN
     ui.timer = new QTimer(this);
     ui.timer->setSingleShot(true);
     ui.timer->setProperty("uskName", uskName);
-
+    ui.numberOfAttemps = 3;
     ui.serialPort = new SerialPort(portName, this);
     ui.serialPort->setProperty("uskName", uskName);
     m_hashOfUsk[uskName] = ui;
@@ -84,12 +90,9 @@ void SendUSKv1WorkingThread::openUsk(const QString &uskName)
                 pUskInfo->serialPort->setFlowControl(SerialPort::NoFlowControl) &&
                 pUskInfo->serialPort->setParity(SerialPort::NoParity))
         {
-            qDebug() << "emit port is open";
             emit portIsOpen(uskName, pUskInfo->port);
-            //pUskInfo->serialPort->write(getSetTimePacket(pUskInfo, QDateTime::currentDateTime()));
-            pUskInfo->serialPort->write(getResetUskPacket(pUskInfo));
-            getChangeKpuRelayStatePacker(pUskInfo, 4,4,4, true);
-            //TODO: проверка наличия УСК (установка времени)
+            pUskInfo->isBusy = false;
+            //TODO: проверка наличия УСК (через команду сброс УСК)
         }
     } else
     {
@@ -115,14 +118,40 @@ void SendUSKv1WorkingThread::closeUsk(const QString &uskName)
 
 void SendUSKv1WorkingThread::sendTime(const QString &uskName, const QDateTime &time)
 {
-
+    if (m_hashOfUsk.contains(uskName))
+    {
+        uskInfo *pUskInfo = &m_hashOfUsk[uskName];
+        uskPacket p;
+        p.packet = getSetTimePacket(pUskInfo, time);
+        p.description = trUtf8("Установка времени %1 на УСК \"%0\"").arg(uskName).arg(time.toString());
+        p.waitResponse = true;
+        pUskInfo->listOfPacketToSend.append(p);
+    }
 }
 
-void SendUSKv1WorkingThread::onTimer2()
+void SendUSKv1WorkingThread::resetUsk(const QString &uskName)
 {
-    foreach(const uskInfo &ui, m_hashOfUsk.values())
+    if (m_hashOfUsk.contains(uskName))
     {
-        qDebug() << "bytesReadyToRead:" << ui.serialPort->bytesAvailable();
+        uskInfo *pUskInfo = &m_hashOfUsk[uskName];
+        uskPacket p;
+        p.packet = getResetUskPacket(pUskInfo);
+        p.description = trUtf8("Сброс УСК \"%0\"").arg(uskName);
+        p.waitResponse = true;
+        pUskInfo->listOfPacketToSend.append(p);
+    }
+}
+
+void SendUSKv1WorkingThread::changeRelayStatus(const QString &uskName, const int &rayNum, const int &kpuNum, const int &sensorNum, const int &relayStatus)
+{
+    if (m_hashOfUsk.contains(uskName))
+    {
+        uskInfo *pUskInfo = &m_hashOfUsk[uskName];
+        uskPacket p;
+        p.packet = getChangeKpuRelayStatePacket(pUskInfo, rayNum, kpuNum, sensorNum, relayStatus);
+        p.description = trUtf8("Изменение контактов реле на УСК \"%0\"").arg(uskName);
+        p.waitResponse = false;
+        pUskInfo->listOfPacketToSend.append(p);
     }
 }
 
@@ -144,12 +173,9 @@ void SendUSKv1WorkingThread::onReadyRead()
             return;
         pUskInfo->timer->stop();
         pUskInfo->buffer->append(pUskInfo->serialPort->readAll());
-        qDebug() << "buffer lenght:" << pUskInfo->buffer->length();
-        qDebug() << pUskInfo->buffer;
 
         while (pUskInfo->buffer->length() >= 26)
         {
-            qDebug() << "inWhile";
             QByteArray packet = pUskInfo->buffer->left(26);
             pUskInfo->buffer->remove(0, 26);
             pUskInfo->uskStatus = uskWaitData;
@@ -197,6 +223,7 @@ void SendUSKv1WorkingThread::onReadyRead()
                 if (pUskInfo->currentNumberOfAttemps < pUskInfo->numberOfAttemps)
                 {
                     // надо бы перепослать пакетик
+                    pUskInfo->currentNumberOfAttemps++;
                     pUskInfo->uskStatus = uskWaitResendPrevCommand;
                     pUskInfo->timer->start(1000);
                 }
@@ -204,11 +231,29 @@ void SendUSKv1WorkingThread::onReadyRead()
             {
                 // изменение состояния контактов
 
+                int rayNum = QString(textMessageLover.at(2)).toInt();
+                int kpuNum = QString(textMessageLover.at(6)).toInt();
+                /*
+                qDebug() << trUtf8("изм. конт. КПУ %0 луч %1 пред %2 тек %3")
+                            .arg(kpuNum).arg(rayNum).arg((uchar)u1, 8, 2, QChar('0')).arg((uchar)u2, 8, 2, QChar('0'));
+                            */
+                // начальный бит - нулевой (младший)
+                char bit = 0x01;
+                // пробегаемся по всем контактам
+                for (int i = 0; i < 8; ++i)
+                {
+                    // если предыдущее и текущее состояние различаеся - информируем внешний мир об этом
+                    if ((u1 ^ u2) & bit)
+                        emit sensorChanged(uskName, rayNum, kpuNum,  i+ 1, u2 & bit ? 1 : 0);
+                    // переходим к сл. датчику (биту)
+                    bit <<= 1;
+                }
+
             } else if (textMessageLover.left(9) == trUtf8("новый оу:"))
             {
                 // обнаружено новое оконечное устройство (кпу)
-                int rayNum = QString(textMessageLover.at(2)).toInt();
-                int kpuNum = QString(textMessageLover.at(6)).toInt();
+                int rayNum = QString(textMessageLover.at(9)).toInt();
+                int kpuNum = QString(textMessageLover.at(15)).toInt();
                 emit detectedNewKpu(uskName, rayNum, kpuNum);
             } else
             {
@@ -251,7 +296,19 @@ void SendUSKv1WorkingThread::onTimer()
             break;
         case uskWaitResponse:
         {
-            if (pUskInfo->buffer->length() >= 2)
+            if (pUskInfo->buffer->length() == 0)
+            {
+                emit error(uskName, errorTimeoutWhileWaitResponse);
+                if (pUskInfo->currentNumberOfAttemps < pUskInfo->numberOfAttemps)
+                {
+                    pUskInfo->uskStatus = uskWaitResendPrevCommand;
+                    pUskInfo->currentNumberOfAttemps++;
+                }
+                else
+                    pUskInfo->uskStatus = uskWaitPeriod;
+
+                pUskInfo->timer->start(1000);
+            } else if (pUskInfo->buffer->length() >= 2)
             {
                 emit error(uskName, errorTimeoutWhileWaitResponse);
                 pUskInfo->uskStatus = uskWaitPeriod;
@@ -262,18 +319,19 @@ void SendUSKv1WorkingThread::onTimer()
             break;
         case uskWaitPeriod:
         {
-            qDebug() << "wait period";
             pUskInfo->uskStatus = uskWaitData;
             pUskInfo->buffer->clear();
             if (pUskInfo->serialPort->isOpen())
                 pUskInfo->serialPort->readAll();
+            pUskInfo->isBusy = false;
         }
             break;
         case uskWaitResendPrevCommand:
         {
             emit startSendingCommand(uskName, pUskInfo->prevPacketDescription);
             pUskInfo->serialPort->write(pUskInfo->prevPacket);
-            pUskInfo->uskStatus = uskWaitAfterSendCommand;
+
+            pUskInfo->uskStatus = pUskInfo->prevPacketWaitResponse ? uskWaitResponse : uskWaitAfterSendCommand;
             pUskInfo->timer->start(1000);
         }
             break;
@@ -283,6 +341,45 @@ void SendUSKv1WorkingThread::onTimer()
             pUskInfo->uskStatus = uskWaitData;
         }
         break;
+        }
+    }
+}
+
+void SendUSKv1WorkingThread::onTimer2()
+{
+    qDebug() << "onTimer2()";
+}
+
+void SendUSKv1WorkingThread::onCheckBuffersTimer()
+{
+    foreach(const QString &key, m_hashOfUsk.keys())
+    {
+        uskInfo &ui = m_hashOfUsk[key];
+        if (!ui.isBusy)
+        {
+            if (!ui.listOfPacketToSend.isEmpty())
+            {
+                ui.isBusy = true;
+                {
+                    const uskPacket &packet = ui.listOfPacketToSend[0];
+                    ui.prevPacket = packet.packet;
+                    ui.prevPacketDescription = packet.description;
+                    ui.currentNumberOfAttemps = 0;
+                    ui.uskStatus = packet.waitResponse ? uskWaitResponse : uskWaitAfterSendCommand;
+                    ui.serialPort->write(packet.packet);
+                    emit startSendingCommand(ui.name, packet.description);
+                    if (packet.waitResponse)
+                    {
+                        // отклик ждем 3 секунды
+                        ui.timer->start(3000);
+                    } else
+                    {
+                        // пауза между посылками команд - пол секунды
+                        ui.timer->start(500);
+                    }
+                }
+                ui.listOfPacketToSend.removeFirst();
+            }
         }
     }
 }
@@ -302,12 +399,9 @@ QByteArray SendUSKv1WorkingThread::getSetTimePacket(const uskInfo *const ui, con
     stringDate.append(day).append('/').append(month).append('/').append(year).append(' ')
             .append(hour).append(':').append(minute).append(':').append(second);
     res.append(stringDate);
-    qDebug() << "strdate" << stringDate;
     res.append(static_cast<char>(0x00));
     res.append(static_cast<char>(0x00));
     appendCrcToPacket(res);
-    qDebug() << day << month << year << hour << minute << second;
-    qDebug() << res.length() << ui->num << (int)res.at(res.length() - 1) << res;
     return res;
 }
 
@@ -322,21 +416,22 @@ QByteArray SendUSKv1WorkingThread::getResetUskPacket(const uskInfo *const ui)
     return res;
 }
 
-QByteArray SendUSKv1WorkingThread::getChangeKpuRelayStatePacker(const uskInfo *const ui, const int &rayNum, const int &kpuNum, const int &sensorNum, const bool &state)
+QByteArray SendUSKv1WorkingThread::getChangeKpuRelayStatePacket(const uskInfo *const ui, const int &rayNum, const int &kpuNum, const int &sensorNum, const int &state)
 {
     QByteArray res;
-    res.append(getFirstPartOfPacket(ui->num, 0x0100, 0));
-    QString textCommand = trUtf8("КПУ %0/%1/%2/%3").arg(rayNum % 10).arg(kpuNum % 10).arg(sensorNum % 10).arg(state ? trUtf8("Вкл 0 ") : trUtf8("Выкл0 "));
-    qDebug() << "textCommand lenght =" << textCommand.length();
-    qDebug() << textCommand;
+    res.append(getFirstPartOfPacket(ui->num, 0x00001000, 0));
+    QString textCommand = trUtf8("КПУ %0/%1/%2/%3").arg(rayNum % 10).arg(kpuNum % 10).arg(sensorNum % 10).arg(state == 1 ? trUtf8("Вкл 0 ") : trUtf8("Выкл 0"));
     QByteArray encodedCommand = m_codecWin1251->fromUnicode(textCommand);
     res.append(encodedCommand);
-    res.append(static_cast<char>(0x00));
-    res.append(static_cast<char>(0x00));
+    res.append(static_cast<char>(rayNum));
+    res.append(static_cast<char>(kpuNum * 0x10 + state));
     appendCrcToPacket(res);
-    qDebug() << encodedCommand.length() <<  res.length();
+    QString str;
+    for (int i = 0; i < res.length(); ++ i)
+        str += trUtf8("%0 ").arg((uchar)res.at(i), 2, 16, QChar('0'));
+    qDebug() << str;
+    qDebug() << textCommand;
     return res;
-
 }
 
 void SendUSKv1WorkingThread::appendCrcToPacket(QByteArray &packet)

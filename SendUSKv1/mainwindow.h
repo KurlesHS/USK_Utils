@@ -7,6 +7,8 @@ namespace Ui {
 class MainWindow;
 }
 
+class SendUSKv1WorkingThread;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -27,11 +29,19 @@ private slots:
     void onStartSendingCommand(const QString &uskName, const QString &commandDescription);
     void onDetectedNewKpu(const QString &uskName, const int &rayNum, const int &kpuNum);
     void onDetectedDisconnetcedKpu(const QString &uskName, const int &rayNum, const int &kpuNum);
+    void onSensorChanged(const QString &uskName, const int &rayNum, const int &kpuNum, const int &sensorNum, const int &state);
+
+    void onSendTimeButtonPushed();
+    void onSendMessageButtonPushed();
+    void onResetUskButtonPushed();
+    void onChangeRelaysOnKpuButtonPushed();
+
 
     void addMessage(const QString &message);
     
 private:
     Ui::MainWindow *ui;
+    SendUSKv1WorkingThread *td;
 };
 
 #endif // MAINWINDOW_H
