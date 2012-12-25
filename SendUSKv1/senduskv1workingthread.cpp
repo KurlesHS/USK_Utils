@@ -139,10 +139,10 @@ void SendUSKv1WorkingThread::onReadyRead()
     {
         // есть такое УСК
         uskInfo *pUskInfo = &m_hashOfUsk[uskName];
-        pUskInfo->timer->stop();
         pUskInfo->isBusy = true;
         if (pUskInfo->uskStatus == uskWaitPeriod)
             return;
+        pUskInfo->timer->stop();
         pUskInfo->buffer->append(pUskInfo->serialPort->readAll());
         qDebug() << "buffer lenght:" << pUskInfo->buffer->length();
         qDebug() << pUskInfo->buffer;
@@ -219,8 +219,9 @@ void SendUSKv1WorkingThread::onReadyRead()
         if (pUskInfo->buffer->length() != 0)
         {
             //что то приняли, но не до конца, пытаемся допринять.
-            pUskInfo->timer->start(1000);
-        }
+            pUskInfo->timer->start(200);
+        } else
+            pUskInfo->isBusy = false;
     }
 }
 
@@ -239,20 +240,29 @@ void SendUSKv1WorkingThread::onTimer()
         {
         case uskWaitData:
         {
-            emit error(uskName, errorTimeoutWhileWaitData);
-            pUskInfo->uskStatus = uskWaitPeriod;
-            pUskInfo->timer->start(1000);
+            if (pUskInfo->buffer->length() >= 2)
+            {
+                emit error(uskName, errorTimeoutWhileWaitData);
+                pUskInfo->uskStatus = uskWaitPeriod;
+                pUskInfo->timer->start(1000);
+            } else
+                pUskInfo->buffer->clear();
         }
             break;
         case uskWaitResponse:
         {
-            emit error(uskName, errorTimeoutWhileWaitResponse);
-            pUskInfo->uskStatus = uskWaitPeriod;
-            pUskInfo->timer->start(1000);
+            if (pUskInfo->buffer->length() >= 2)
+            {
+                emit error(uskName, errorTimeoutWhileWaitResponse);
+                pUskInfo->uskStatus = uskWaitPeriod;
+                pUskInfo->timer->start(1000);
+            } else
+                pUskInfo->buffer->clear();
         }
             break;
         case uskWaitPeriod:
         {
+            qDebug() << "wait period";
             pUskInfo->uskStatus = uskWaitData;
             pUskInfo->buffer->clear();
             if (pUskInfo->serialPort->isOpen())

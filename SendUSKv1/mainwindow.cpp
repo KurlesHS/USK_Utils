@@ -19,8 +19,11 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(td, SIGNAL(uskInfoPacketReceived(QString,int)), SLOT(onUskInfoPacketReceived(QString,int)));
     connect(td, SIGNAL(uskIsPresent(QString,bool)), SLOT(onUskIsPresent(QString,bool)));
     connect(td, SIGNAL(uskReset(QString)), SLOT(onUskReset(QString)));
-
+#ifdef Q_OS_WIN
     td->addUsk("11", "COM1", 11);
+#elif defined Q_OS_LINUX
+    td->addUsk("11", "ttyS0", 11);
+#endif
     td->openUsk("11");
 
 }
