@@ -11,6 +11,7 @@
 #include <QByteArray>
 #include <QFontMetrics>
 #include <QTimer>
+#include <QTcpSocket>
 #include "mylineedit.h"
 #include "abstractserial.h"
 #include "serialdeviceenumerator.h"
@@ -24,6 +25,11 @@
 namespace Ui {
     class MainWindow;
 }
+
+enum mode {
+    modeSerialPort,
+    modeEthernet
+};
 
 class MainWindow : public QMainWindow
 {
@@ -51,6 +57,7 @@ public:
 private:
     Ui::MainWindow *ui;
     AbstractSerial *serialPort;
+    QTcpSocket *socket;
     SerialThread *serialThread;
     QQueue<char> queue;
     QByteArray array;
@@ -58,6 +65,7 @@ private:
     QTimer timer;
     PacketDecoder packetDecoder;
     PacketInfoWindows *packetInfoWindows;
+    mode currentMode;
 
 protected:
     void closeEvent(QCloseEvent *);
@@ -88,6 +96,9 @@ private slots:
     void onWrongResponseReceived(QByteArray response);
     void onDataReceived(QByteArray array);
     void onResponseReceived(QByteArray array);
+
+    void onUseSerialPortActionTriggered();
+    void onUseNetworkActionTriggered();
 
 };
 

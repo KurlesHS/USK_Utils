@@ -39,7 +39,7 @@ void SerialThread::setUseRepeatPacket(bool use)
     usePacketRepeat = use;
 }
 
-void SerialThread::setSerialPortDriver(AbstractSerial *serial){
+void SerialThread::setSerialPortDriver(QIODevice *serial){
     serialPort = serial;
 }
 

@@ -8,7 +8,8 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
     packetInfoWindows = 0;
-    setWindowTitle(trUtf8("USK Terminal v2.06 alpha"));
+    currentMode = modeSerialPort;
+    setWindowTitle(trUtf8("USK Terminal v2.5 RC1"));
     ui->tableWidget->verticalHeader()->setVisible(true);
     ui->tableWidget->horizontalHeader()->setVisible(true);
 
@@ -21,6 +22,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->pushButtonSendPacket->setEnabled(false);
     ui->pushButtonCancelSendPacket->setEnabled(false);
 
+
     SerialDeviceEnumerator *sde = SerialDeviceEnumerator::instance();
     QStringList listOfSerialPort = sde->devicesAvailable();
     if (listOfSerialPort.isEmpty()) {
@@ -28,7 +30,11 @@ MainWindow::MainWindow(QWidget *parent) :
         QCoreApplication::exit(0);
     }
     serialThread = 0;
+    socket = 0;
     onEnableRepeatRacketButtonPushed();
+    connect(ui->actionNetwork, SIGNAL(triggered()), this, SLOT(onUseNetworkActionTriggered()));
+    connect(ui->actionSerialPort, SIGNAL(triggered()), this, SLOT(onUseSerialPortActionTriggered()));
+
     connect(ui->checkBoxCRC,SIGNAL(clicked()),SLOT(onIncludeCRCCheckBoxChanged()));
     connect(ui->checkBoxCRCMethod, SIGNAL(clicked()), SLOT(onIncludeCRCCheckBoxChanged()));
 
@@ -460,6 +466,38 @@ void MainWindow::onResponseReceived(QByteArray array)
     }
 }
 
+void MainWindow::onUseSerialPortActionTriggered()
+{
+
+    if (!ui->actionSerialPort->isChecked()){
+        ui->actionSerialPort->blockSignals(true);
+        ui->actionSerialPort->setChecked(true);
+        ui->actionSerialPort->blockSignals(false);
+        return;
+    }
+    ui->actionNetwork->blockSignals(true);
+    ui->actionNetwork->setChecked(false);
+    ui->actionNetwork->blockSignals(false);
+    ui->stackedWidget->setCurrentIndex(0);
+    currentMode = modeSerialPort;
+}
+
+void MainWindow::onUseNetworkActionTriggered()
+{
+    if (!ui->actionNetwork->isChecked()) {
+        ui->actionNetwork->blockSignals(true);
+        ui->actionNetwork->setChecked(true);
+        ui->actionNetwork->blockSignals(false);
+        return;
+    }
+
+    ui->actionSerialPort->blockSignals(true);
+    ui->actionSerialPort->setChecked(false);
+    ui->actionSerialPort->blockSignals(false);
+    ui->stackedWidget->setCurrentIndex(1);
+    currentMode = modeEthernet;
+}
+
 void MainWindow::onClearReceiveRegionButtonPushed()
 {
     ui->lineEditResBin->setText("");
@@ -601,10 +639,6 @@ void MainWindow::onOpenPortButtonPushed()
     connect(serialThread,SIGNAL(timeOutHappensWhileWaitingResponse()),this,SLOT(OnTimeOutReached()));
     connect(serialThread, SIGNAL(timeOutHappensWhileWaitingData()), this, SLOT(OnTimeOutReached()));
     connect(serialThread, SIGNAL(sendPacketSuccess()), this, SLOT(onEndTransmitPacket()));
-
-
-
-
     serialThread->start();
 }
 

@@ -22,8 +22,8 @@
 */
 
 #include "nativeserialengine_p.h"
-
-#ifndef Q_CC_MSVC
+#define TEMP1
+#ifndef TEMP1
 #  include <ddk/ntddser.h>
 #else
 #ifndef IOCTL_SERIAL_GET_DTRRTS
@@ -40,6 +40,7 @@
 #endif
 
 #endif
+#undef TEMP1
 
 //#define NATIVESERIALENGINE_WIN_DEBUG
 

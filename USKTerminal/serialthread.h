@@ -5,6 +5,7 @@
 #include <QByteArray>
 #include <QTime>
 #include "abstractserial.h"
+#include <QTcpSocket>
 
 class SerialThread : public QThread
 {
@@ -16,7 +17,7 @@ public:
     void run();
     void sendPacket(QByteArray array);
     void sendRespons(QByteArray array);
-    void setSerialPortDriver(AbstractSerial *serial);
+    void setSerialPortDriver(QIODevice *serial);
     void setRepeatPacketCount(int value);
     void setPacketDecoderMode(bool packerDecoderMode);
     void setDelayBetweenSendPacket(int delayInSec);
@@ -48,7 +49,8 @@ signals:
 public slots:
 
 private:
-    AbstractSerial *serialPort;
+    QIODevice *serialPort;
+    QTcpSocket *socket;
     QByteArray array, tempArray;
     QByteArray incommingArray;
     QTime currentTime;

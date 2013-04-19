@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui
+QT       += core gui network
 
 RCC_DIR = $$PWD/../build/rcc
 UI_DIR = $$PWD/../build/ui
