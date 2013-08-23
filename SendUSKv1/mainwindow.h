@@ -35,6 +35,8 @@ private slots:
     void onSendMessageButtonPushed();
     void onResetUskButtonPushed();
     void onChangeRelaysOnKpuButtonPushed();
+    void onLfButtonPushed();
+
 
 
     void addMessage(const QString &message);

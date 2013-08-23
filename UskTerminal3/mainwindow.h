@@ -11,6 +11,7 @@
 #include <QByteArray>
 #include <QFontMetrics>
 #include <QTimer>
+#include <QThread>
 #include <QTcpSocket>
 #include "mylineedit.h"
 #include "abstractserial.h"
@@ -21,6 +22,10 @@
 #include "packetinfowindows.h"
 
 #define ColumnCount 0x100
+
+QT_BEGIN_NAMESPACE
+class SerialThreadWorker;
+QT_END_NAMESPACE
 
 namespace Ui {
     class MainWindow;
@@ -56,16 +61,15 @@ public:
 
 private:
     Ui::MainWindow *ui;
-    AbstractSerial *serialPort;
-    QTcpSocket *socket;
-    SerialThread *serialThread;
+
     QQueue<char> queue;
     QByteArray array;
     QByteArray resRegArray;
-    QTimer timer;
     PacketDecoder packetDecoder;
     PacketInfoWindows *packetInfoWindows;
     mode currentMode;
+    QThread m_thread;
+    SerialThreadWorker *m_serialThreadWoker;
 
 protected:
     void closeEvent(QCloseEvent *);
@@ -74,7 +78,6 @@ private slots:
     void onCellChanged(int row, int column);
     void onCellEdited(QString str);
     void onRtsChanged(bool status);
-    void onTimerEvent();
     void onFocusChanged();
     void onIncludeCRCCheckBoxChanged();
     void OnTimeOutReached();

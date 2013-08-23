@@ -379,18 +379,18 @@ void PacketDecoder::parseResponse(QByteArray response, PacketDecoder::ResponseTy
         }
         response.remove(0,numByte);
 
-        if (response.length() < 2) {
+        if (response.length() < 4) {
             statePacket = IncompletePacket;
             return;
         }
 
-        if (response.length() > 2) {
+        if (response.length() > 4) {
             //ошибка!!!
             statePacket = IncorrcetPacket;
             return;
         }
 
-        if (response.at(0))
+        if (response.at(0) != 0)
         {
             statePacket = IncorrcetPacket;
             return;
@@ -407,6 +407,9 @@ void PacketDecoder::parseResponse(QByteArray response, PacketDecoder::ResponseTy
             //ура!!! все сошлось!!!
             statePacket = CorrectPacket;
             USKNum = numUSK;
+            modules = 0;
+            modules += response.at(1);
+            modules += (uchar)response.at(2) * 0x100;
             return;
         }
 

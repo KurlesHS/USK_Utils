@@ -1,6 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-
+#include <QMetaObject>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -45,6 +45,9 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->pushButtonClearReceiveRegion,SIGNAL(clicked()),this,SLOT(onClearReceiveRegionButtonPushed()));
     connect(ui->pushButtonCancelSendPacket, SIGNAL(clicked()), this, SLOT(onCancelSendPacketButtonPushed()));
 
+    connect(ui->pushButtonConnectToHost, SIGNAL(clicked()), this, SLOT(onOpenNetworkButtonPushed()));
+    connect(ui->pushButtonDisconnectFromHost, SIGNAL(clicked()), this, SLOT(onCloseNetworkButtonPushed()));
+
     connect(ui->radioButtonTerminalMode, SIGNAL(toggled(bool)), this, SLOT(onTerminalModeChanged(bool)));
 
     connect(&timer, SIGNAL(timeout()),this, SLOT(onTimerEvent()));
@@ -59,6 +62,10 @@ MainWindow::MainWindow(QWidget *parent) :
     timer.setParent(this);
     timer.start(20);
     ui->groupBoxRepeatPacket->setEnabled(false);
+
+    ui->pushButtonConnectToHost->setEnabled(true);
+    ui->pushButtonDisconnectFromHost->setEnabled(false);
+
 
     ui->SerialPortComboBox->addItems(listOfSerialPort);
     serialPort = new AbstractSerial(this);
@@ -206,8 +213,9 @@ MainWindow::~MainWindow()
     setting.setValue("DataBits", ui->dataBitsComboBox->currentIndex());
     setting.endGroup();
     if (serialThread) {
-        serialThread->terminate();
-        serialThread->wait();
+        serialThread->setStatusTerminate();
+        if (!serialThread->wait(2000))
+            serialThread->terminate();
         delete serialThread;
         serialThread = 0;
     }
@@ -238,6 +246,8 @@ void MainWindow::OnTimeOutReached()
 //слот для обработки поступивших данных
 void MainWindow::onDataReceived(QByteArray array)
 {
+    qDebug()  << Q_FUNC_INFO << "enter" << getHexString(array) ;
+
     //если активен режим терминала - все просто,
     //добвавляем к уже существующему массиву данных
     //новополученные данные
@@ -420,6 +430,7 @@ void MainWindow::onDataReceived(QByteArray array)
 //слот для обработки отклика от УСК
 void MainWindow::onResponseReceived(QByteArray array)
 {
+    qDebug()  << Q_FUNC_INFO << "enter" << getHexString(array);
     packetDecoder.parseResponse(array);
     int state = packetDecoder.getStatePacket();
     bool isStandartResponse = true;
@@ -437,6 +448,7 @@ void MainWindow::onResponseReceived(QByteArray array)
     case PacketDecoder::IncorrcetPacket:
     {
         //ошибочный отклик:
+        qDebug()  << Q_FUNC_INFO << "incorect" << getHexString(array);
         serialThread->onIncorrectResponseReceived();
         addLogMessage(trUtf8("Неверный отклик"));
 
@@ -450,7 +462,7 @@ void MainWindow::onResponseReceived(QByteArray array)
         break;
     case PacketDecoder::CorrectPacket:
     {
-        serialThread->onCorrectResponseReceived();
+        //serialThread->onCorrectResponseReceived();
         addLogMessage(trUtf8("Получен %1 от УСК №%0").arg(packetDecoder.getUSKNum())
                       .arg(isStandartResponse ? trUtf8("простой отклик") : trUtf8("отклик на команду установки времени")));
 
@@ -571,6 +583,51 @@ void MainWindow::closeEvent(QCloseEvent *ev)
     QWidget::closeEvent(ev);
 }
 
+void MainWindow::onCloseNetworkButtonPushed()
+{
+    ui->plainTextEditNetworkEvents->appendPlainText(trUtf8("Соединение с сервером прервано пользователем"));
+    closeSocket();
+}
+
+void MainWindow::onSocketConnected()
+{
+    ui->plainTextEditNetworkEvents->appendPlainText(trUtf8("Соединение с сервером установлено"));
+}
+
+void MainWindow::onSocketDisconnected()
+{
+    ui->plainTextEditNetworkEvents->appendPlainText(trUtf8("Соединение с сервером потеряно"));
+    closeSocket();
+}
+
+
+void MainWindow::onSocketError(QAbstractSocket::SocketError socketError)
+{
+    ui->plainTextEditNetworkEvents->appendPlainText("Ошибка сети");
+    closeSocket();
+}
+
+void MainWindow::closeSocket()
+{
+    ui->pushButtonConnectToHost->setEnabled(true);
+    ui->pushButtonDisconnectFromHost->setEnabled(false);
+    ui->lineEditServerAddress->setEnabled(true);
+    ui->spinBoxPortNumber->setEnabled(true);
+    ui->pushButtonSendPacket->setEnabled(false);
+    ui->pushButtonCancelSendPacket->setEnabled(false);
+    ui->actionSerialPort->setEnabled(true);
+    ui->actionNetwork->setEnabled(true);
+    if (serialThread) {
+    serialThread->setStatusTerminate();
+    }
+    if (serialThread) {
+        delete serialThread;
+    }
+    socket = 0;
+    serialThread = 0;
+}
+
+
 void MainWindow::onClosePortButtonPushed()
 {
     ui->pushButtonOpenPort->setEnabled(true);
@@ -579,20 +636,47 @@ void MainWindow::onClosePortButtonPushed()
     ui->pushButtonSendPacket->setEnabled(false);
     ui->pushButtonCancelSendPacket->setEnabled(false);
     ui->baudRateComboBox->setEnabled(true);
-    ui->flowContorlComboBox->setEnabled(true);
-    ui->dataBitsComboBox->setEnabled(true);
-    ui->stopBitsComboBox->setEnabled(true);
-    ui->parityComboBox->setEnabled(true);
-
-
+    ui->actionNetwork->setEnabled(true);
+    ui->actionNetwork->setEnabled(true);
     serialThread->terminate();
-    serialThread->wait();
-    serialPort->close();
-    delete serialPort;
+    if (socket) {
+        socket->abort();
+        delete socket;
+        socket = 0;
+    }
     delete serialThread;
-    serialPort = 0;
     serialThread = 0;
 }
+
+void MainWindow::onOpenNetworkButtonPushed()
+{
+    if (socket) return;
+
+    if (serialThread) return;
+
+    ui->pushButtonConnectToHost->setEnabled(false);
+    ui->pushButtonDisconnectFromHost->setEnabled(true);
+    ui->pushButtonSendPacket->setEnabled(true);
+    ui->pushButtonCancelSendPacket->setEnabled(true);
+    ui->lineEditServerAddress->setEnabled(false);
+    ui->spinBoxPortNumber->setEnabled(false);
+    serialThread = new SerialThread(SerialThread::typeEthernet);
+    serialThread->setNetworkSettings(ui->lineEditServerAddress->text(), ui->spinBoxPortNumber->value());
+
+    connect(serialThread, SIGNAL(connected()), this, SLOT(onSocketConnected()));
+    connect(serialThread, SIGNAL(disconnected()), this, SLOT(onSocketDisconnected()));
+    connect(serialThread, SIGNAL(error(QAbstractSocket::SocketError)), SLOT(onSocketError(QAbstractSocket::SocketError)));
+    ui->actionNetwork->setEnabled(false);
+    ui->actionNetwork->setEnabled(false);
+
+    connect(serialThread,SIGNAL(dataReceived(QByteArray)),this,SLOT(onDataReceived(QByteArray)));
+    connect(serialThread, SIGNAL(responseReceived(QByteArray)), this, SLOT(onResponseReceived(QByteArray)));
+    connect(serialThread,SIGNAL(timeOutHappensWhileWaitingResponse()),this,SLOT(OnTimeOutReached()));
+    connect(serialThread, SIGNAL(timeOutHappensWhileWaitingData()), this, SLOT(OnTimeOutReached()));
+    connect(serialThread, SIGNAL(sendPacketSuccess()), this, SLOT(onEndTransmitPacket()));
+    serialThread->start();
+}
+
 
 void MainWindow::onOpenPortButtonPushed()
 {
@@ -632,6 +716,8 @@ void MainWindow::onOpenPortButtonPushed()
     ui->parityComboBox->setEnabled(false);
     serialThread = new SerialThread;
     serialThread->setSerialPortDriver(serialPort);
+    ui->actionNetwork->setEnabled(false);
+    ui->actionNetwork->setEnabled(false);
     //serialPort->moveToThread(serialThread);
 
     connect(serialThread,SIGNAL(dataReceived(QByteArray)),this,SLOT(onDataReceived(QByteArray)));

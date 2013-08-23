@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1034</width>
-    <height>396</height>
+    <width>1031</width>
+    <height>527</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -111,6 +111,67 @@
          </widget>
         </item>
         <item>
+         <widget class="QGroupBox" name="groupBox_7">
+          <property name="title">
+           <string>220</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_9">
+           <property name="spacing">
+            <number>6</number>
+           </property>
+           <item>
+            <widget class="QWidget" name="" native="true">
+             <layout class="QHBoxLayout" name="horizontalLayout_6">
+              <property name="margin">
+               <number>0</number>
+              </property>
+              <item>
+               <widget class="QRadioButton" name="radioButton220_1">
+                <property name="text">
+                 <string>220 - 1</string>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="radioButton220_2">
+                <property name="text">
+                 <string>220 - 2</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QWidget" name="widget" native="true">
+             <layout class="QHBoxLayout" name="horizontalLayout_5">
+              <item>
+               <widget class="QRadioButton" name="radioButtonLfOn">
+                <property name="text">
+                 <string>Вкл</string>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="radioButtonLfOff">
+                <property name="text">
+                 <string>Выкл</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
@@ -157,6 +218,13 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QPushButton" name="pushButtonLF">
+        <property name="text">
+         <string>НЧ</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </item>
    </layout>
@@ -166,7 +234,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1034</width>
+     <width>1031</width>
      <height>21</height>
     </rect>
    </property>

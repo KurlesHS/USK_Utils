@@ -20,14 +20,12 @@ OBJECTS_DIR = $$PWD/../build/senduskv1/release/obj
 CONFIG(debug, debug|release):DEFINES += DEBUG
 
 
-greaterThan(QT_MAJOR_VERSION, 4) {
-    QT       += widgets serialport
-} else {
-    !infile($$OUT_PWD/.qmake.cache, SERIALPORT_PROJECT_ROOT) {
-        system("echo SERIALPORT_PROJECT_ROOT = $$PWD/../qtserialport >> $$OUT_PWD/.qmake.cache")
-        system("echo SERIALPORT_BUILD_ROOT = $$PWD/../qtserialport >> $$OUT_PWD/.qmake.cache")
-    }
-     include($$SERIALPORT_PROJECT_ROOT/src/serialport/qt4support/serialport.prf)
+greaterThan(QT_MAJOR_VERSION, 4) {QT += serialport}
+else:
+{
+    system("echo QTSERIALPORT_PROJECT_ROOT = $$PWD/../qtserialport > $$OUT_PWD/.qmake.cache")
+    system("echo QTSERIALPORT_BUILD_ROOT = $$PWD/../qtserialport >> $$OUT_PWD/.qmake.cache")
+    include($$QTSERIALPORT_PROJECT_ROOT/src/serialport/qt4support/serialport.prf)
 }
 
 

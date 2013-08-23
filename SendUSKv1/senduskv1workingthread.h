@@ -5,14 +5,13 @@
 #include <QHash>
 #include <QDateTime>
 #include <QTextCodec>
-#include <QtAddOnSerialPort/serialport.h>
-#include <QtAddOnSerialPort/serialportinfo.h>
+#include <QtSerialPort/qserialport.h>
+#include <QtSerialPort/qserialportinfo.h>
 
 QT_BEGIN_NAMESPACE
 class QTimer;
 QT_END_NAMESPACE
 
-QT_USE_NAMESPACE_SERIALPORT
 
 class SendUSKv1WorkingThread : public QObject
 {
@@ -39,7 +38,7 @@ class SendUSKv1WorkingThread : public QObject
     {
         QString name;
         QString port;
-        SerialPort *serialPort;
+        QSerialPort *serialPort;
         QTimer *timer;
         QByteArray *buffer;
         uskState uskStatus;
@@ -85,6 +84,7 @@ public slots:
     void sendTime(const QString &uskName, const QDateTime &time);
     void resetUsk(const QString &uskName);
     void changeRelayStatus(const QString &uskName, const int &rayNum, const int &kpuNum, const int &sensorNum, const int &relayStatus);
+    void changeVoltageStatus(const QString &uskName, const int numOutput, const bool &on);
 
 signals:
     void error(const QString &uskName, int errorCode);
@@ -107,6 +107,7 @@ private:
     QByteArray getChangeKpuRelayStatePacket(const uskInfo *const ui, const int &rayNum, const int &kpuNum, const int &sensorNum, const int &state);
     void appendCrcToPacket(QByteArray &packet);
     QByteArray getFirstPartOfPacket(const ushort &uskNum, const quint64 &flags, const quint8 &priority);
+    QByteArray getVoltageStatusPacket(const uskInfo *const ui, const int &numOutput, const bool &on);
 
 private slots:
     void onReadyRead();

@@ -50,6 +50,7 @@ public:
         CorrectPacket, //правильный пакет/ответ
         IncorrcetPacket, //неправиьный пакет/ответ
         IncompletePacket, //неполный пакет/ответ
+        ResponsePacket, // отклик
         UnknownPacket //не получилось расшифровать пакет
     };
 
@@ -128,6 +129,7 @@ private:
     int kpuType, kpuNum, kpuState, kpuPrevState, kpuSoftVersion, kpuHardVersion;
     quint64 kpuSerialNumber;
     QString textMessage;
+    quint16 modules;
     int standartEvent;
     int USKTemperature;
     QByteArray USKVoltages;

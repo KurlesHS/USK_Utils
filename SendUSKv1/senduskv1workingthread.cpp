@@ -45,7 +45,7 @@ bool SendUSKv1WorkingThread::addUsk(const QString &uskName, const QString &portN
     ui.timer->setSingleShot(true);
     ui.timer->setProperty("uskName", uskName);
     ui.numberOfAttemps = 3;
-    ui.serialPort = new SerialPort(portName, this);
+    ui.serialPort = new QSerialPort(portName, this);
     ui.serialPort->setProperty("uskName", uskName);
     m_hashOfUsk[uskName] = ui;
     connect(ui.serialPort, SIGNAL(readyRead()), this, SLOT(onReadyRead()));
@@ -82,13 +82,13 @@ void SendUSKv1WorkingThread::openUsk(const QString &uskName)
     if (pUskInfo->isOpen)
         return;
     pUskInfo->serialPort->setPort(pUskInfo->port);
-    if (pUskInfo->serialPort->open(SerialPort::ReadWrite))
+    if (pUskInfo->serialPort->open(QSerialPort::ReadWrite))
     {
-        if (pUskInfo->serialPort->setDataBits(SerialPort::Data8) &&
-                pUskInfo->serialPort->setRate(9600) &&
-                pUskInfo->serialPort->setStopBits(SerialPort::OneStop) &&
-                pUskInfo->serialPort->setFlowControl(SerialPort::NoFlowControl) &&
-                pUskInfo->serialPort->setParity(SerialPort::NoParity))
+        if (pUskInfo->serialPort->setDataBits(QSerialPort::Data8) &&
+                pUskInfo->serialPort->setBaudRate(9600) &&
+                pUskInfo->serialPort->setStopBits(QSerialPort::OneStop) &&
+                pUskInfo->serialPort->setFlowControl(QSerialPort::NoFlowControl) &&
+                pUskInfo->serialPort->setParity(QSerialPort::NoParity))
         {
             emit portIsOpen(uskName, pUskInfo->port);
             pUskInfo->isBusy = false;
@@ -155,9 +155,22 @@ void SendUSKv1WorkingThread::changeRelayStatus(const QString &uskName, const int
     }
 }
 
+void SendUSKv1WorkingThread::changeVoltageStatus(const QString &uskName, const int numOutput, const bool &on)
+{
+    if (m_hashOfUsk.contains(uskName))
+    {
+        uskInfo *pUskInfo = &m_hashOfUsk[uskName];
+        uskPacket p;
+        p.packet = getVoltageStatusPacket(pUskInfo, numOutput, on);
+        p.description = trUtf8("Изменение статуса НЧ выхода номер %1 на УСК \"%0\"").arg(uskName).arg(numOutput);
+        p.waitResponse = false;
+        pUskInfo->listOfPacketToSend.append(p);
+    }
+}
+
 void SendUSKv1WorkingThread::onReadyRead()
 {
-    SerialPort *sp = qobject_cast<SerialPort*>(sender());
+    QSerialPort *sp = qobject_cast<QSerialPort*>(sender());
     if (!sp)
         return;
     QString uskName = sp->property("uskName").toString();
@@ -434,6 +447,8 @@ QByteArray SendUSKv1WorkingThread::getChangeKpuRelayStatePacket(const uskInfo *c
     return res;
 }
 
+
+
 void SendUSKv1WorkingThread::appendCrcToPacket(QByteArray &packet)
 {
     char crc = 0x00;
@@ -454,5 +469,23 @@ QByteArray SendUSKv1WorkingThread::getFirstPartOfPacket(const ushort &uskNum, co
     res.append((flags >> 24) & 0xff);
     res.append(priority);
     return res;
+}
 
+QByteArray SendUSKv1WorkingThread::getVoltageStatusPacket(const uskInfo * const ui, const int &numOutput, const bool &on)
+{
+    quint64 flag;
+    switch (numOutput) {
+    case 2:
+        flag = on ? 0x00002000 : 0x00004000;
+        break;
+    default:
+        flag = on ? 0x00000020 : 0x00000100;
+        break;
+    }
+    QByteArray res = getFirstPartOfPacket(ui->num, flag, 0);
+    res.append("                ");
+    res.append((char)0x00);
+    res.append((char)0x00);
+    appendCrcToPacket(res);
+    return res;
 }

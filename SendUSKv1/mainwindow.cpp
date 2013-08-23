@@ -25,6 +25,9 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->pushButtonMessageOnScreen, SIGNAL(clicked()), SLOT(onSendMessageButtonPushed()));
     connect(ui->pushButtonResetUSK, SIGNAL(clicked()), SLOT(onResetUskButtonPushed()));
     connect(ui->pushButtonChangeRelay, SIGNAL(clicked()), SLOT(onChangeRelaysOnKpuButtonPushed()));
+    connect(ui->pushButtonLF, SIGNAL(clicked()), SLOT(onLfButtonPushed()));
+
+
 
     for (int i = 1; i <= 4; ++i)
         ui->comboBoxRayNum->addItem(trUtf8("Луч №%0").arg(i));
@@ -174,6 +177,11 @@ void MainWindow::onChangeRelaysOnKpuButtonPushed()
                           ui->comboBoxKpuNum->currentIndex() + 1,
                           ui->comboBoxRelayNum->currentIndex() + 1,
                           ui->comboBoxRelayState->currentIndex());
+}
+
+void MainWindow::onLfButtonPushed()
+{
+    td->changeVoltageStatus("11", ui->radioButton220_1->isChecked() ? 1 : 2, ui->radioButtonLfOn->isChecked());
 }
 
 void MainWindow::addMessage(const QString &message)
