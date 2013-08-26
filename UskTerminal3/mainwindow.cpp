@@ -547,23 +547,23 @@ void MainWindow::closeEvent(QCloseEvent *ev)
 
 void MainWindow::onCloseNetworkButtonPushed()
 {
-    ui->plainTextEditNetworkEvents->appendPlainText(trUtf8("Соединение с сервером прервано пользователем"));
+    ui->textEditLogEvents->append(trUtf8("Соединение с сервером прервано пользователем"));
 }
 
 void MainWindow::onSocketConnected()
 {
-    ui->plainTextEditNetworkEvents->appendPlainText(trUtf8("Соединение с сервером установлено"));
+    ui->textEditLogEvents->append(trUtf8("Соединение с сервером установлено"));
 }
 
 void MainWindow::onSocketDisconnected()
 {
-    ui->plainTextEditNetworkEvents->appendPlainText(trUtf8("Соединение с сервером потеряно"));
+    ui->textEditLogEvents->append(trUtf8("Соединение с сервером потеряно"));
 }
 
 
 void MainWindow::onSocketError(QAbstractSocket::SocketError socketError)
 {
-    ui->plainTextEditNetworkEvents->appendPlainText("Ошибка сети");
+    ui->textEditLogEvents->append("Ошибка сети");
 }
 
 void MainWindow::closeSocket()
