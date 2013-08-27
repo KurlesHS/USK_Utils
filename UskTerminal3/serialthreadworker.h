@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QTcpSocket>
 #include <QTimer>
-#include <QList>
+#include <QQueue>
 #include "abstractserial.h"
 #include "packetdecoder.h"
 class SerialThreadWorker : public QObject
@@ -58,7 +58,6 @@ public Q_SLOTS:
     void setCurrentMode(int mode);
     void setDelayBetweenPacket(int ms);
     void sendPacket(const QByteArray &packet, const QString &description, const int &numberOfTryingToSend = 2);
-    void sendResponse(const QByteArray &response);
     void openSerialPort(const QString &portName, const QString &baudrate, const QString &flowcontrol, const QString stopbits, const QString databits, const QString &parity);
     void openEthernet(const QString &addr, const int &port);
     bool isConnectedToUsk();
@@ -90,13 +89,13 @@ private:
     int m_timeoutInMs;
     QTcpSocket *m_socket;
     AbstractSerial *m_serialPort;
-    QTimer m_timerForTimeouts;
     PacketDecoder m_packetDecoder;
-    QTimer m_timtrForCheckPackets;
     states m_currentState;
     Packet m_currentPacket;
     QByteArray m_currentDataChunk;
-    QList<Packet> m_listOfPacketToSend;
+    QTimer m_timerForCheckPackets;
+    QTimer m_timerForTimeouts;
+    QQueue<Packet> m_queueOfPacketToSend;
 };
 
 #endif // SERIALTHREADWORKER_H

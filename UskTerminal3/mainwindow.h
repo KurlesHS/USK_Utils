@@ -112,6 +112,11 @@ private slots:
     void onUseSerialPortActionTriggered();
     void onUseNetworkActionTriggered();
 
+    void onUskIsConnected(bool state, QString message);
+
+    void onSimpleLog(QString message);
+    void onComplexLog(QString message, QString color);
+
 };
 
 #endif // MAINWINDOW_H

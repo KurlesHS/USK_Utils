@@ -31,11 +31,11 @@ void PacketDecoder::initPacketDecoder()
     nameOfFlags[8] =  QObject::trUtf8("F13 (Reserved)");
     nameOfFlags[7] = QObject::trUtf8("F14 (Reserved)");
 
-    nameOfCommand.clear();
-    nameOfCommand.append(QObject::trUtf8("Сброс УСК"));
-    nameOfCommand.append(QObject::trUtf8("Обнаружен КПУ"));
-    nameOfCommand.append(QObject::trUtf8("Неиспарен КПУ"));
-    nameOfCommand.append(QObject::trUtf8("Изменение состояний портов КПУ"));
+    nameOfKpuCommand.clear();
+    //nameOfKpuCommand.append(QObject::trUtf8("Сброс УСК"));
+    nameOfKpuCommand[0x0c] = QObject::trUtf8("Обнаружен КПУ");
+    nameOfKpuCommand[0x0d] = QObject::trUtf8("Неисправен/отключен КПУ");
+    nameOfKpuCommand[0x00] = QObject::trUtf8("Изменение состояний портов КПУ");
 
     statePacket = IncompletePacket;
 }
@@ -100,7 +100,6 @@ void PacketDecoder::parsePacket(QByteArray array)
         this->flags.setBit(i, _flags & bit);
         bit = bit << 1;
     }
-    qDebug() << "flags:" << _flags;
     array.remove(0,len);
     len = array.length();
     if (flags.testBit(F03) && !flags.testBit(F04))
@@ -109,7 +108,6 @@ void PacketDecoder::parsePacket(QByteArray array)
         //значит присутствует 16-ти байтное сообщение
         if (len < 16)
         {
-            qDebug() << len << "<" << 16 << "=" << (len < 16);
             statePacket = IncompletePacket;
             return;
         }
@@ -183,83 +181,85 @@ void PacketDecoder::parsePacket(QByteArray array)
     else dataArray = QByteArray();
 
     //проверка на приход команды от КПУ
-    if (flags.testBit(F03) && flags.testBit(F04) && flags.testBit(F05) && flags.testBit(F06))
+    if (flags.testBit(F05) && flags.testBit(F06) && dataArray.length() >= 3)
     {
-        ;
-        int command = array.at(0);
-        array.remove(0,1);
+
+        int command = (uchar)array.at(2);
+        int typeKpu = (uchar)array.at(1);
+        int numKpu = (uchar)array.at(0);
+        array.remove(0,3);
         standartEvent = command;
-        qDebug() << standartEvent;
         switch(command){
-        case 0:
+        case 0x0111:
             // сброс УСК
         {
 
         }
             break;
-        case 1:
+        case 0x0c:
             // обнаружен кпу
-            // тип КПУ (1 байт)
+
             // номер КПУ (1 байт)
+            // тип КПУ (1 байт)
+            // команда (1)
             // состояние контактов (?1 байт), может быть зависимость от типа КПУ
-            // версия ПО (1 байт)
-            // версия железа (1 байт)
-            // серйный номер (4 байта)
 
         {
 
-            if (array.length() != 10){
+            if (array.length() != 1){
                 // что то не так с пакетом!
-                // его длинна должна быть равной 9 байтам!
+                // его длинна должна быть равной 1 байтам!
                 statePacket = UnknownPacket;
                 return;
             }
-            kpuType = (uchar)array.at(0);
-            kpuNum = (uchar)array.at(1);
-            kpuState = (uchar) array.at(2);
-            kpuSoftVersion = (uchar) array.at(3);
-            kpuHardVersion = (uchar) array.at(4);
-            kpuSerialNumber =  array.at(5) +
-                    (array.at(6) << 8) +
-                    (array.at(7) << 16) +
-                    (array.at(8) << 24);
+            kpuType = typeKpu;
+            kpuNum = numKpu;
+            kpuState = (uchar)array.at(0);
+            //kpuSoftVersion = (uchar) array.at(3);
+            //kpuHardVersion = (uchar) array.at(4);
+            //kpuSerialNumber =  array.at(5) +
+            //        (array.at(6) << 8) +
+            //        (array.at(7) << 16) +
+            //        (array.at(8) << 24);
             return;
 
         }
             break;
-        case 2:
+        case 0x0d:
             // неисправен/отключен КПУ
             // номер КПУ (1 байт)
         {
-            if (array.length() != 1)
+            if (array.length() != 0)
             {
                 // что то не так с пакетом!
                 // его длинна должна быть равной 1 байту!
                 statePacket = UnknownPacket;
                 return;
             }
-            kpuNum = (uchar) array.at(0);
+            kpuNum = numKpu;
 
         }
             break;
-        case 3:
+        case 0x00:
             // изменение состояния датчиков КПУ
-            // тип КПУ (1 байт)
+
             // номер КПУ (1 байт)
+            // тип КПУ (1 байт)
+            // команда (0)
             // текущее состояние датчиков
             // предыдущее состояние датчиков
         {
-            if (array.length() != 4)
+            if (array.length() != 2)
             {
                 // что то не так с пакетом!
                 // его длинна должна быть равной 4 байтам!
                 statePacket = UnknownPacket;
                 return;
             }
-            kpuType = (uchar)array.at(0);
-            kpuNum = (uchar)array.at(1);
-            kpuState = (uchar)array.at(2);
-            kpuPrevState = (uchar)array.at(3);
+            kpuType = typeKpu;
+            kpuNum = numKpu;
+            kpuState = (uchar)array.at(0);
+            kpuPrevState = (uchar)array.at(1);
             return;
         }
             break;
@@ -359,7 +359,7 @@ void PacketDecoder::parseResponse(QByteArray response, PacketDecoder::ResponseTy
 
     case StandartResponse: /*ожидаем простой ответ
       1: адрес уск
-      2: флаг (0)
+      2: два байта, побитовое поле модулей, принявших команду
       3: CRC
     */
     {
@@ -407,8 +407,7 @@ void PacketDecoder::parseResponse(QByteArray response, PacketDecoder::ResponseTy
             //ура!!! все сошлось!!!
             statePacket = CorrectPacket;
             USKNum = numUSK;
-            modules = 0;
-            modules += response.at(1);
+            modules = response.at(1);
             modules += (uchar)response.at(2) * 0x100;
             return;
         }
@@ -466,6 +465,11 @@ QBitArray PacketDecoder::getWorkingModules()
     return workingModules;
 }
 
+quint16 PacketDecoder::getModules() const
+{
+    return modules;
+}
+
 QByteArray PacketDecoder::getArray()
 {
     return dataArray;
@@ -473,8 +477,7 @@ QByteArray PacketDecoder::getArray()
 
 QString PacketDecoder::getCommand(int command)
 {
-    if (command > 4) return QObject::trUtf8("Неизвестная комада");
-    return nameOfCommand.at(command);
+    return nameOfKpuCommand.value(command, QObject::trUtf8("Неизвестная комада"));
 }
 
 void PacketDecoder::getNewKPUData(int &type, int &kpuNum, int &state, int &softVersion, int &hardVersion, quint64 &serialNumber)

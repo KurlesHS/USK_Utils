@@ -13,6 +13,10 @@ MainWindow::MainWindow(QWidget *parent) :
     m_serialThreadWoker = new SerialThreadWorker();
     m_serialThreadWoker->moveToThread(&m_thread);
     m_thread.start();
+    connect(m_serialThreadWoker, SIGNAL(logMessage(QString)), this, SLOT(onSimpleLog(QString)), Qt::QueuedConnection);
+    connect(m_serialThreadWoker, SIGNAL(logMessageForParserWindows(QString,QString)), this, SLOT(onComplexLog(QString,QString)), Qt::QueuedConnection);
+    connect(m_serialThreadWoker, SIGNAL(dataArrived(QByteArray)), this, SLOT(onDataReceived(QByteArray)), Qt::QueuedConnection);
+    connect(m_serialThreadWoker, SIGNAL(connectedToUsk(bool,QString)), this, SLOT(onUskIsConnected(bool,QString)), Qt::QueuedConnection);
 
     ui->tableWidget->verticalHeader()->setVisible(true);
     ui->tableWidget->horizontalHeader()->setVisible(true);
@@ -187,6 +191,12 @@ MainWindow::MainWindow(QWidget *parent) :
         ui->stopBitsComboBox->setCurrentIndex(setting.value("StopBits").toInt());
     if (setting.contains("DataBits"))
         ui->dataBitsComboBox->setCurrentIndex(setting.value("DataBits").toInt());
+    if (setting.contains("NetworkAddr"))
+        ui->lineEditServerAddress->setText(setting.value("NetworkAddr").toString());
+    if (setting.contains("NetworkPort"))
+        ui->spinBoxPortNumber->setValue(setting.value("NetworkPort").toInt());
+    if (setting.contains("TerminalMode"))
+        ui->radioButtonParserPacketMode->setChecked(!setting.value("TerminalMode").toBool());
 
     setting.endGroup();
 }
@@ -208,6 +218,9 @@ MainWindow::~MainWindow()
     setting.setValue("Parity", ui->parityComboBox->currentIndex());
     setting.setValue("StopBits", ui->stopBitsComboBox->currentIndex());
     setting.setValue("DataBits", ui->dataBitsComboBox->currentIndex());
+    setting.setValue("NetworkAddr", ui->lineEditServerAddress->text());
+    setting.setValue("NetworkPort", ui->spinBoxPortNumber->value());
+    setting.setValue("TerminalMode", ui->radioButtonTerminalMode->isChecked());
     setting.endGroup();
 
 
@@ -219,12 +232,12 @@ MainWindow::~MainWindow()
     }
     QTime t;
     t.start();
+    m_serialThreadWoker->deleteLater();
+    QMetaObject::invokeMethod(m_serialThreadWoker, "deleteLater", Qt::BlockingQueuedConnection);
     m_thread.quit();
     if (!m_thread.wait(120000)) {
         m_thread.terminate();
     }
-    qDebug() << Q_FUNC_INFO <<t.elapsed();
-    delete m_serialThreadWoker;
     delete ui;
 }
 
@@ -237,20 +250,16 @@ void MainWindow::OnTimeOutReached()
 //слот для обработки поступивших данных
 void MainWindow::onDataReceived(QByteArray array)
 {
-    qDebug()  << Q_FUNC_INFO << "enter" << getHexString(array) ;
 
     //если активен режим терминала - все просто,
     //добвавляем к уже существующему массиву данных
     //новополученные данные
-    if (ui->radioButtonTerminalMode->isChecked())
-    {
-        resRegArray.append(array);
-        ui->lineEditResBin->setText(getBinString(resRegArray));
-        ui->lineEditResDec->setText(getDecString(resRegArray));
-        ui->lineEditResHex->setText(getHexString(resRegArray));
-        ui->lineEditResChar->setText(getCharString(resRegArray));
-        return;
-    }
+    resRegArray.append(array);
+    ui->lineEditResBin->setText(getBinString(resRegArray));
+    ui->lineEditResDec->setText(getDecString(resRegArray));
+    ui->lineEditResHex->setText(getHexString(resRegArray));
+    ui->lineEditResChar->setText(getCharString(resRegArray));
+    return;
 
     //попытка отпарсить пришедший пакет
     packetDecoder.parsePacket(array);
@@ -382,7 +391,6 @@ void MainWindow::onDataReceived(QByteArray array)
         foreach (char byte, response)
             crk += (quint8)byte;
         response.append((char)crk);
-        qDebug() << "отклик перед отправкой:" << response;
     }
         break;
     case PacketDecoder::UnknownPacket:
@@ -416,7 +424,6 @@ void MainWindow::onDataReceived(QByteArray array)
 //слот для обработки отклика от УСК
 void MainWindow::onResponseReceived(QByteArray array)
 {
-    qDebug()  << Q_FUNC_INFO << "enter" << getHexString(array);
     packetDecoder.parseResponse(array);
     int state = packetDecoder.getStatePacket();
     bool isStandartResponse = true;
@@ -434,7 +441,6 @@ void MainWindow::onResponseReceived(QByteArray array)
     case PacketDecoder::IncorrcetPacket:
     {
         //ошибочный отклик:
-        qDebug()  << Q_FUNC_INFO << "incorect" << getHexString(array);
         addLogMessage(trUtf8("Неверный отклик"));
 
         return;
@@ -463,13 +469,47 @@ void MainWindow::onResponseReceived(QByteArray array)
 
 void MainWindow::onUseSerialPortActionTriggered()
 {
-
-
+    ui->actionNetwork->blockSignals(true);
+    ui->actionSerialPort->blockSignals(true);
+    ui->actionNetwork->setChecked(false);
+    ui->actionSerialPort->setChecked(true);
+    ui->actionNetwork->blockSignals(false);
+    ui->actionSerialPort->blockSignals(false);
+    ui->stackedWidget->setCurrentWidget(ui->serialPage);
 }
 
 void MainWindow::onUseNetworkActionTriggered()
 {
+    ui->actionNetwork->blockSignals(true);
+    ui->actionSerialPort->blockSignals(true);
+    ui->actionNetwork->setChecked(true);
+    ui->actionSerialPort->setChecked(false);
+    ui->actionNetwork->blockSignals(false);
+    ui->actionSerialPort->blockSignals(false);
+    ui->stackedWidget->setCurrentWidget(ui->networkPage);
+}
 
+void MainWindow::onUskIsConnected(bool state, QString message)
+{
+    ui->textEditLogEvents->append(message);
+    ui->pushButtonClosePort->setEnabled(state);
+    ui->pushButtonDisconnectFromHost->setEnabled(state);
+    ui->pushButtonConnectToHost->setEnabled(!state);
+    ui->pushButtonOpenPort->setEnabled(!state);
+    ui->pushButtonSendPacket->setEnabled(state);
+    ui->pushButtonCancelSendPacket->setEnabled(state);
+}
+
+void MainWindow::onSimpleLog(QString message)
+{
+    ui->textEditLogEvents->append(message);
+}
+
+void MainWindow::onComplexLog(QString message, QString color)
+{
+    if (packetInfoWindows){
+        packetInfoWindows->addText(message, color);
+    }
 }
 
 void MainWindow::onClearReceiveRegionButtonPushed()
@@ -547,6 +587,7 @@ void MainWindow::closeEvent(QCloseEvent *ev)
 
 void MainWindow::onCloseNetworkButtonPushed()
 {
+    onClosePortButtonPushed();
     ui->textEditLogEvents->append(trUtf8("Соединение с сервером прервано пользователем"));
 }
 
@@ -569,30 +610,42 @@ void MainWindow::onSocketError(QAbstractSocket::SocketError socketError)
 void MainWindow::closeSocket()
 {
 
-
 }
 
 
 void MainWindow::onClosePortButtonPushed()
 {
-
-
+    QMetaObject::invokeMethod(m_serialThreadWoker, "closeConnection", Qt::QueuedConnection);
 }
 
 void MainWindow::onOpenNetworkButtonPushed()
 {
+    //void openEthernet(const QString &addr, const int &port);
+    QMetaObject::invokeMethod(m_serialThreadWoker, "openEthernet", Qt::QueuedConnection,
+                              Q_ARG(QString, ui->lineEditServerAddress->text()),
+                              Q_ARG(int, ui->spinBoxPortNumber->value()));
 
 }
 
 
 void MainWindow::onOpenPortButtonPushed()
 {
-
+    //void openSerialPort(const QString &portName, const QString &baudrate, const QString &flowcontrol, const QString stopbits, const QString databits, const QString &parity);
+    QMetaObject::invokeMethod(m_serialThreadWoker, "openSerialPort", Qt::QueuedConnection,
+                              Q_ARG(QString, ui->SerialPortComboBox->currentText()),
+                              Q_ARG(QString, ui->baudRateComboBox->currentText()),
+                              Q_ARG(QString, ui->flowContorlComboBox->currentText()),
+                              Q_ARG(QString, ui->stopBitsComboBox->currentText()),
+                              Q_ARG(QString, ui->parityComboBox->currentText()));
 }
 
 void MainWindow::onSendPacketButtonPushed()
 {
-
+    //void sendPacket(const QByteArray &packet, const QString &description, const int &numberOfTryingToSend = 2);
+    QMetaObject::invokeMethod(m_serialThreadWoker, "sendPacket", Qt::QueuedConnection,
+                              Q_ARG(QByteArray, array),
+                              Q_ARG(QString, QString(trUtf8("Пользвательский пакет"))),
+                              Q_ARG(int, 2));
 }
 
 void MainWindow::onSendPacketButtonPushed(QByteArray packet)
@@ -930,6 +983,10 @@ void MainWindow::onEndTransmitPacket()
 void MainWindow::onTerminalModeChanged(bool terminalModeSelected)
 {
     ui->groupBoxRepeatPacket->setEnabled(!terminalModeSelected);
+    //void setCurrentMode(int mode);
+    int mode = terminalModeSelected ? SerialThreadWorker::terminalMode : SerialThreadWorker::packetMode;
+    QMetaObject::invokeMethod(m_serialThreadWoker, "setCurrentMode", Qt::QueuedConnection,
+                              Q_ARG(int, mode));
 
     if (terminalModeSelected)
     {
@@ -966,6 +1023,7 @@ void MainWindow::onShowPacketInfoWindowMenu()
     {
         if (packetInfoWindows) return;
         packetInfoWindows = new PacketInfoWindows;
+        connect(packetInfoWindows, SIGNAL(destroyed()), this, SLOT(onPacketInfoWindowsDestroyed()));
         packetInfoWindows->show();
     } else
     {
@@ -973,12 +1031,6 @@ void MainWindow::onShowPacketInfoWindowMenu()
         delete packetInfoWindows;
         packetInfoWindows = 0;
     }
-    QVector<QString> v;
-    foreach(QString str, v)
-    {
-        qDebug() << str;
-    }
-
 }
 
 void MainWindow::onEnableRepeatRacketButtonPushed()

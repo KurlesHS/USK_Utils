@@ -17,7 +17,6 @@ PacketInfoWindows::PacketInfoWindows(QWidget *parent) :
 PacketInfoWindows::~PacketInfoWindows()
 {
     delete ui;
-    qDebug() << "Destroy PacketInfoWindows";
 }
 
 void PacketInfoWindows::addText(QString text, QString color)

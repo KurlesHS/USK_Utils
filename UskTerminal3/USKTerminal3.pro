@@ -6,6 +6,8 @@
 
 QT       += core gui network
 
+QMAKE_CXXFLAGS += -std=c++11
+
 RCC_DIR = $$PWD/../build/rcc
 UI_DIR = $$PWD/../build/ui
 MOC_DIR = $$PWD/../build//moc

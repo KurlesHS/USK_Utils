@@ -2,15 +2,20 @@
 #include <QHostAddress>
 #include "mywidget.h"
 
+#define CURRENT_TIME QTime::currentTime().toString("hh:mm:ss")
+
 SerialThreadWorker::SerialThreadWorker(QObject *parent) :
     QObject(parent),
     m_currentMode(terminalMode),
     m_currnetConnectionType(noneConnectionType),
     m_delayBetweenPacket(200),
-    m_timeoutInMs(3000)
+    m_timeoutInMs(5000),
+    m_timerForCheckPackets(this),
+    m_timerForTimeouts(this)
+
 {
-    m_socket = new QTcpSocket();
-    m_serialPort = new AbstractSerial();
+    m_socket = new QTcpSocket(this);
+    m_serialPort = new AbstractSerial(this);
     m_timerForTimeouts.setSingleShot(true);
     connect(m_socket, SIGNAL(readyRead()), this, SLOT(onReadyRead()));
     connect(m_serialPort, SIGNAL(readyRead()), this, SLOT(onReadyRead()));
@@ -23,12 +28,13 @@ SerialThreadWorker::SerialThreadWorker(QObject *parent) :
     connect(m_socket, SIGNAL(disconnected()),
             this, SLOT(onSocketDisconnected()));
     connect(&m_timerForTimeouts, SIGNAL(timeout()), this, SLOT(onTimeout()));
-    connect(&m_timtrForCheckPackets, SIGNAL(timeout()), this, SLOT(onCheckPacket()));
+    connect(&m_timerForCheckPackets, SIGNAL(timeout()), this, SLOT(onCheckPacket()));
     m_currentState = waitDataState;
 }
 
 SerialThreadWorker::~SerialThreadWorker()
 {
+    qDebug() << Q_FUNC_INFO;
     delete m_socket;
     delete m_serialPort;
 }
@@ -42,9 +48,9 @@ void SerialThreadWorker::parseIncomingPacket(QIODevice * const device)
     {
         // приняли некорректный пакет - игнорируем его
         m_currentDataChunk.clear();
-        emit logMessage("Принят некорректный пакет данных");
+        emit logMessage(trUtf8("Принят некорректный пакет данных"));
         m_currentState = waitDataState;
-        m_timtrForCheckPackets.start(m_delayBetweenPacket);
+        m_timerForCheckPackets.start(m_delayBetweenPacket);
     }
         break;
     case PacketDecoder::IncompletePacket:
@@ -89,15 +95,16 @@ void SerialThreadWorker::parseIncomingPacket(QIODevice * const device)
             emit logMessageForParserWindows(trUtf8("<br/>Присутствует текстовая строка: %0").arg(m_packetDecoder.getTextMessage()), "black");
         }
 
-        if (flags.testBit(PacketDecoder::F03) && flags.testBit(PacketDecoder::F04) && flags.testBit(PacketDecoder::F05)) //стандартная команда
+        if (flags.testBit(PacketDecoder::F06) && flags.testBit(PacketDecoder::F05 && m_packetDecoder.getArray().length() >= 3) ) //команда от КПУ
         {
-            emit logMessageForParserWindows(trUtf8("<br/>Установлены флаги f3, f4, f5, f6"), "black");
-            emit logMessageForParserWindows(trUtf8("Команда от КПУ: %0").arg(m_packetDecoder.getCommand(m_packetDecoder.getArray().at(0))), "black");
-            switch (m_packetDecoder.getArray().at(0))
+            int commad = (uchar)m_packetDecoder.getArray().at(2);
+            emit logMessageForParserWindows(trUtf8("<br/>Установлены флаги f5, f6"), "black");
+            emit logMessageForParserWindows(trUtf8("Команда от КПУ: %0").arg(m_packetDecoder.getCommand(commad)), "black");
+            switch (commad)
             {
-            case 0:
+            case 0x01221:
                 break;
-            case 1:
+            case 0x0c:
                 //обнаружен кпу
             {
                 int type;
@@ -108,21 +115,21 @@ void SerialThreadWorker::parseIncomingPacket(QIODevice * const device)
                 quint64 serialNumber;
                 m_packetDecoder.getNewKPUData(type, kpuNum, state, softVersion, hardVersion, serialNumber);
                 emit logMessageForParserWindows(trUtf8("<br/>Номер КПУ: %0;<br/>Тип КПУ:%1;<br/>Сосотояние контактов:%2"
-                                                  "<br/>Версия ПО:%3<br>Версия платы:%4"
-                                                  "<br/>Серийный номер:%5")
-                                           .arg(kpuNum)
-                                           .arg(type)
-                                           .arg(state)
-                                           .arg(softVersion)
-                                           .arg(hardVersion)
-                                           .arg(serialNumber), "black");
+                                                  /*"<br/>Версия ПО:%3<br>Версия платы:%4"
+                                                  "<br/>Серийный номер:%5"*/)
+                                                .arg(kpuNum)
+                                                .arg(type)
+                                                .arg(getBinString(QByteArray().append((char)state))), "black");
+                                           //.arg(softVersion)
+                                           //.arg(hardVersion)
+                                           //.arg(serialNumber), "black");
             }
                 break;
-            case 2:
+            case 0x0d:
                 //отключен/неисправен КПУ
                 emit logMessageForParserWindows(trUtf8("<br/>Номер КПУ:%0").arg(m_packetDecoder.getKPUNum()), "black");
                 break;
-            case 3:
+            case 0x00:
                 // изменение состояния датчиков КПУ
                 emit logMessageForParserWindows(trUtf8("<br/>Номер КПУ:%0"
                                                   "<br/>Тип КПУ:%1"
@@ -130,8 +137,8 @@ void SerialThreadWorker::parseIncomingPacket(QIODevice * const device)
                                                   "<br/>Предыдущее состояние контактов:%3")
                                            .arg(m_packetDecoder.getKPUNum())
                                            .arg(m_packetDecoder.getKPUType())
-                                           .arg(m_packetDecoder.getKPUState())
-                                           .arg(m_packetDecoder.getPrevKPUState()), "black");
+                                           .arg(getBinString(QByteArray().append((char)m_packetDecoder.getKPUState())))
+                                           .arg(getBinString(QByteArray().append((char)m_packetDecoder.getPrevKPUState()))), "black");
                 break;
             default:
                 break;
@@ -142,7 +149,7 @@ void SerialThreadWorker::parseIncomingPacket(QIODevice * const device)
     case PacketDecoder::UnknownPacket:
     {
         emit logMessage(trUtf8("принят неизвестный пакет!"));
-        QString string = trUtf8("%0: Принят неизвестный пакет, его данные: ").arg(QTime::currentTime().toString("hh:mm:ss"));
+        QString string = trUtf8("%0: Принят неизвестный пакет, его данные: ").arg(CURRENT_TIME);
         emit logMessageForParserWindows(string, "red");
         string = trUtf8("<br/>Hex: %0<br/>Dec: %1<br/>Char: %2")
                       .arg(getHexString(m_currentDataChunk))
@@ -169,14 +176,16 @@ void SerialThreadWorker::parseIncomingPacket(QIODevice * const device)
             crc += (quint8)byte;
         response.append((char)crc);
         device->write(response);
-        emit logMessage("%0 Отсылаем стандартный отклик:").arg(QTime::currentTime().toString("hh:mm:ss"));
-        string = trUtf8("<br/>Hex: %0<br/>Dec: %1<br/>Char: %2")
-                      .arg(getHexString(m_currentDataChunk))
-                      .arg(getDecString(m_currentDataChunk))
-                      .arg(getCharString(m_currentDataChunk));
+        emit logMessageForParserWindows(trUtf8("%0 Отсылаем стандартный отклик:").arg(CURRENT_TIME), "darkred");
+        QString string = trUtf8("<br/>Hex: %0<br/>Dec: %1<br/>Char: %2")
+                      .arg(getHexString(response))
+                      .arg(getDecString(response))
+                      .arg(getCharString(response));
         emit logMessageForParserWindows(string, "gray");
         emit logMessageForParserWindows(trUtf8("<br/>------------Конец отклика--------------<br/>"), "red");
-        m_timtrForCheckPackets.start(m_delayBetweenPacket);
+        m_timerForCheckPackets.start(m_delayBetweenPacket);
+        m_currentDataChunk.clear();
+
     }
         break;
     default:
@@ -186,7 +195,43 @@ void SerialThreadWorker::parseIncomingPacket(QIODevice * const device)
 
 void SerialThreadWorker::parseIncomingResponse(QIODevice * const device)
 {
-
+    QByteArray chunkData = device->readAll();
+    emit dataArrived(chunkData);
+    m_currentDataChunk.append(chunkData);
+    m_packetDecoder.parseResponse(m_currentDataChunk);
+    int state = m_packetDecoder.getStatePacket();
+    switch(state) {
+    case PacketDecoder::IncompletePacket:
+    {
+        m_currentState = continueWaitResponseState;
+        m_timerForTimeouts.start(m_timeoutInMs);
+    }
+        break;
+    case PacketDecoder::IncorrcetPacket:
+    {
+        emit logMessage(trUtf8("Принят ошибочный отклик от УСК"));
+        emit logMessageForParserWindows(trUtf8("<br/>%0: Принят ошибочный отклик от УСК<br/>").arg(CURRENT_TIME), "red");
+        m_currentDataChunk.clear();
+        m_currentState = waitDataState;
+        m_timerForCheckPackets.start(m_delayBetweenPacket);
+    }
+        break;
+    case PacketDecoder::CorrectPacket:
+    {
+        int numUsk = m_packetDecoder.getUSKNum();
+        emit logMessage(trUtf8("Принят отклик от УСК №%0").arg(numUsk));
+        emit logMessageForParserWindows(trUtf8("<br/>%0: Принят отклик от УСК №%1<br/>").arg(CURRENT_TIME).arg(numUsk), "darkred");
+        quint16 modules = m_packetDecoder.getModules();
+        QByteArray bmod;
+        bmod.append(modules % 0x100);
+        bmod.append(modules / 0x100);
+        emit logMessageForParserWindows(trUtf8("Байты модулей: %0").arg(getBinString(bmod)), "darkred");
+        m_currentState = waitDataState;
+        m_timerForCheckPackets.start(m_delayBetweenPacket);
+        m_currentDataChunk.clear();
+    }
+        break;
+    }
 }
 
 void SerialThreadWorker::setCurrentMode(int mode)
@@ -206,12 +251,7 @@ void SerialThreadWorker::sendPacket(const QByteArray &packet, const QString &des
     p.desctiption = description;
     p.numCount = numberOfTryingToSend;
     p.packet = packet;
-    m_listOfPacketToSend.append(p);
-}
-
-void SerialThreadWorker::sendResponse(const QByteArray &response)
-{
-
+    m_queueOfPacketToSend.enqueue(p);
 }
 
 void SerialThreadWorker::openSerialPort(const QString &portName, const QString &baudrate, const QString &flowcontrol, const QString stopbits, const QString databits, const QString &parity)
@@ -250,6 +290,7 @@ void SerialThreadWorker::openEthernet(const QString &addr, const int &port)
     if (m_currnetConnectionType == noneConnectionType && m_socket->state() == QAbstractSocket::UnconnectedState) {
         m_socket->connectToHost(QHostAddress(addr), port);
         m_currnetConnectionType = ethernetConnectionType;
+        m_timerForCheckPackets.start(m_delayBetweenPacket);
     } else {
         emit connectedToUsk(false, trUtf8("Соединение к последновательному порту или сервером уже устновлено"));
     }
@@ -294,7 +335,7 @@ void SerialThreadWorker::onReadyRead()
             return;
         }
         m_timerForTimeouts.stop();
-        m_timtrForCheckPackets.stop();
+        m_timerForCheckPackets.stop();
         m_currentDataChunk.append(packet);
         switch (m_currentState) {
         case waitDataState:
@@ -328,7 +369,7 @@ void SerialThreadWorker::onSocketDisconnected()
 
 void SerialThreadWorker::onSocketStateChanged(QAbstractSocket::SocketState socketState)
 {
-
+    Q_UNUSED(socketState)
 }
 
 void SerialThreadWorker::onSocketError(QAbstractSocket::SocketError socketError)
@@ -340,27 +381,53 @@ void SerialThreadWorker::onSocketError(QAbstractSocket::SocketError socketError)
 
 void SerialThreadWorker::onTimeout()
 {
+    m_timerForTimeouts.stop();
     switch(m_currentState) {
     case waitDataState:
     case continueWaitDataState:
     {
-
+        emit logMessage(trUtf8("Таймаут при получении пакета от УСК"));
+        emit logMessageForParserWindows(trUtf8("%0: Таймаут при ожидании отклика от УСК").arg(CURRENT_TIME), "red");
     }
         break;
     case waitResponseState:
     case continueWaitResponseState:
     {
-
+        emit logMessage(trUtf8("Таймаут при ожидании отклика от УСК"));
+        emit logMessageForParserWindows(trUtf8("%0: Таймаут при ожидании отклика от УСК").arg(CURRENT_TIME), "red");
     }
         break;
     default:
         break;
     }
+    m_currentState = waitDataState;
+    m_timerForCheckPackets.start(m_delayBetweenPacket);
 }
 
 void SerialThreadWorker::onCheckPacket()
 {
-
+    if (!m_queueOfPacketToSend.isEmpty()) {
+        m_timerForCheckPackets.stop();
+        QIODevice *dev = nullptr;
+        if (m_serialPort->isOpen()) {
+            dev = m_serialPort;
+        } else if (m_socket->isOpen()) {
+            dev = m_socket;
+        } else {
+            return;
+        }
+        Packet p = m_queueOfPacketToSend.dequeue();
+        m_currentPacket = p;
+        if (p.packet.isEmpty()) {
+            return;
+        }
+        dev->write(p.packet);
+        if (m_currentMode == packetMode)
+            m_timerForTimeouts.start(m_timeoutInMs);
+        else
+            m_timerForCheckPackets.start(m_delayBetweenPacket);
+        m_currentState = waitResponseState;
+    }
 }
 
 QString SerialThreadWorker::getHexString(QByteArray array)

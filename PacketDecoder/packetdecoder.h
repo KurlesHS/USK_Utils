@@ -7,6 +7,7 @@
 #include <QMap>
 #include <QList>
 #include <QDateTime>
+#include <QHash>
 
 //оперделения соответствия флагов
 /*
@@ -97,6 +98,8 @@ public:
     QByteArray getVoltages();
     //рабочие модули (ответ на команду установки времени)
     QBitArray getWorkingModules();
+    // модули, принявшие пакет
+    quint16 getModules() const;
     //массив данных
     QByteArray getArray();
     //текстовое представление команды по ее номеру
@@ -123,7 +126,7 @@ private:
     QBitArray workingModules;
     QByteArray dataArray;
     QMap<int, QString> nameOfFlags; //названия флагов
-    QStringList nameOfCommand;
+    QHash<int, QString> nameOfKpuCommand;
     StatePacket statePacket; //текущее состояние пакета
     QMap <int, QBitArray> kpuStatesMap;
     int kpuType, kpuNum, kpuState, kpuPrevState, kpuSoftVersion, kpuHardVersion;
